@@ -67,6 +67,12 @@ cfg_list() { # file key
     jq -r --arg k "$2" '.[$k][]? | if type == "string" then . else tostring end' "$1" 2>/dev/null
 }
 
+# Human size: "4.2 KB" below 1 MiB, "12.3 MB" at/above (1-decimal,
+# invariant culture — mirrors the Windows N1 KB/MB reporting).
+fmt_size() { # bytes
+    LC_ALL=C awk -v s="$1" 'BEGIN{if (s < 1048576) printf "%.1f KB", s/1024; else printf "%.1f MB", s/1048576}'
+}
+
 # Canonical path (resolves ., .., duplicate slashes; -m tolerates missing tails).
 canonical() { # path
     if command -v realpath >/dev/null 2>&1; then realpath -m -- "$1"
