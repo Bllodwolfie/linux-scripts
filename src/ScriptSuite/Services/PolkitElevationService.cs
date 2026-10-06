@@ -204,6 +204,28 @@ public sealed class PolkitElevationService
         return 0;
     }
 
+    /// <summary>Dry-run of the pkexec command line: returns the exact argv that
+    /// RunElevated would spawn, without creating temp files or spawning
+    /// anything. For verifying construction before a real authorization.</summary>
+    public IReadOnlyList<string> PreviewArgv(string scriptId, string configPath,
+        IReadOnlyList<string>? includeOnly = null)
+    {
+        string self = HelperPath;
+        if (string.IsNullOrEmpty(self))
+            throw new InvalidOperationException("Environment.ProcessPath is null.");
+        string fake = Path.Combine(AppPaths.RuntimeRoot, "scriptsuite_<result>.json");
+        var argv = new List<string>
+        {
+            "pkexec", self,
+            "--elevated-run", scriptId,
+            "--config-path", configPath,
+            "--result-path", fake,
+            "--live-log", fake + ".live.log",
+            "--include-only", fake + ".include.json",
+        };
+        return argv;
+    }
+
     private static (int emitted, string carry) PumpLiveLog(string path, int emitted, string carry, Action<string> onLine)
     {
         if (!File.Exists(path)) return (emitted, carry);
