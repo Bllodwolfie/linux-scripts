@@ -1,0 +1,27 @@
+{
+  "id": "EmptyFolderCleanup",
+  "displayName": "Empty Folder Cleanup",
+  "description": "Recursively removes empty folders under a chosen root folder.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/EmptyFolderCleanup/EmptyFolderCleanup.sh",
+  "fields": [
+    {
+      "name": "TargetFolder",
+      "label": "Folder to scan",
+      "type": "path",
+      "default": "$HOME/Downloads",
+      "helpText": "The root folder whose empty subfolders will be removed.",
+      "helpDetail": "Only folders with no files and no non-empty subfolders are removed. This runs repeatedly to catch parents that become empty. The root folder itself is never removed, even if it is empty. Empty folders are deleted permanently (never via Trash), but they contain no data to recover."
+    },
+    {
+      "name": "IgnoreFolders",
+      "label": "Folders to never delete",
+      "type": "pathList",
+      "default": [],
+      "helpText": "Empty folders listed here are never deleted, including everything under them.",
+      "helpDetail": "Each entry is a folder this script will always keep, even when empty — and anything inside it is left alone too. A parent folder that only contains ignored folders is kept automatically, since it is not empty. Entries may use $HOME paths and trailing slashes; matching is case-sensitive (Linux filesystems are). An entry outside the scanned folder simply never matches. Folders that do not exist yet are fine — they are kept if created later. Leave empty for default behavior."
+    }
+  ]
+}

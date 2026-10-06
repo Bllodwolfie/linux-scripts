@@ -64,14 +64,8 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
     fi
 fi
 
-# Minimal env expansion for config paths (~/$HOME/$USER only — no eval).
-expand_user_path() {
-    local p="$1"
-    [[ "$p" == "~"* ]] && p="$HOME${p:1}"
-    p="${p//\$HOME/$HOME}"; p="${p//\$\{HOME\}/$HOME}"
-    p="${p//\$USER/$USER}"; p="${p//\$\{USER\}/$USER}"
-    printf '%s' "$p"
-}
+# Minimal env expansion for config paths lives in common.sh
+# (expand_user_path: leading ~ plus $HOME/$USER, no eval).
 BACKUP_DIR=$(expand_user_path "$BACKUP_DIR")
 
 if [[ "$SCOPE" != "user" && "$SCOPE" != "system" ]]; then

@@ -67,10 +67,72 @@ cfg_list() { # file key
     jq -r --arg k "$2" '.[$k][]? | if type == "string" then . else tostring end' "$1" 2>/dev/null
 }
 
+# Minimal env expansion for config paths (leading ~ plus $HOME/$USER in
+# either $VAR or ${VAR} form — no eval).
+expand_user_path() { # path
+    local p="$1"
+    [[ "$p" == "~"* ]] && p="$HOME${p:1}"
+    p="${p//\$HOME/$HOME}"; p="${p//\$\{HOME\}/$HOME}"
+    p="${p//\$USER/$USER}"; p="${p//\$\{USER\}/$USER}"
+    printf '%s' "$p"
+}
+
 # Human size: "4.2 KB" below 1 MiB, "12.3 MB" at/above (1-decimal,
 # invariant culture — mirrors the Windows N1 KB/MB reporting).
 fmt_size() { # bytes
     LC_ALL=C awk -v s="$1" 'BEGIN{if (s < 1048576) printf "%.1f KB", s/1024; else printf "%.1f MB", s/1048576}'
+}
+
+# "N.N MB, last modified yyyy-MM-dd" detail string (Windows dry-run format).
+file_detail() { # path
+    local sz d
+    sz=$(stat -c %s -- "$1" 2>/dev/null || echo 0)
+    d=$(stat -c %y -- "$1" 2>/dev/null | cut -d' ' -f1)
+    LC_ALL=C awk -v s="$sz" -v d="${d:-unknown}" 'BEGIN{printf "%.1f MB, last modified %s", s/1048576, d}'
+}
+
+# True when the file's mtime is strictly older than cutoff_days before
+# now_epoch (mirrors LastWriteTime < now-AddDays; negative cutoff matches
+# nothing, as on Windows).
+is_old_file() { # path cutoff_days now_epoch
+    [[ "$2" -lt 0 ]] && return 1
+    local mt
+    mt=$(stat -c %Y -- "$1" 2>/dev/null) || return 1
+    [[ "$mt" -lt $(( $3 - $2 * 86400 )) ]]
+}
+
+# First glob pattern (PowerShell -like semantics) matching name, or false.
+# Case-insensitive, filename-only matching is the caller's job: pass patterns
+# already trimmed with empties dropped.
+matches_pattern_list() { # name pat...
+    local name="$1"; shift
+    local pat restore
+    restore=$(shopt -p nocasematch)
+    shopt -s nocasematch
+    for pat in "$@"; do
+        # shellcheck disable=SC2053
+        if [[ "$name" == $pat ]]; then
+            eval "$restore"
+            printf '%s' "$pat"
+            return 0
+        fi
+    done
+    eval "$restore"
+    return 1
+}
+
+# Trash one file via gio (recoverable delete for user data). Returns 0 only
+# when the file is actually gone afterwards — never report false success.
+trash_file() { # path
+    gio trash -- "$1" 2>/dev/null || return 1
+    [[ ! -e "$1" && ! -L "$1" ]]
+}
+
+# Append "[yyyy-MM-dd HH:mm:ss] message" to a log file (shared CleanupLog.txt
+# convention). Log-dir creation is the caller's job (mkdir -p, best effort).
+write_log() { # logfile message
+    local f="$1"; shift
+    printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$f" 2>/dev/null
 }
 
 # Canonical path (resolves ., .., duplicate slashes; -m tolerates missing tails).

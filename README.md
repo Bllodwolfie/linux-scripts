@@ -72,6 +72,35 @@ Second script through the pipeline (Windows EmptyRecycleBin counterpart):
   and history insert. 11/11 PASS, trash left exactly as found.
 * Verified: `SELF-TEST PASS` headless (twice, idempotent) + GUI boot.
 
+## Stage 5 (this commit) — Downloads, Screenshots, EmptyFolder
+
+Three file scripts through the pipeline (Windows counterparts faithful):
+
+* `scripts/DownloadsCleanup/` — non-recursive sort/clean: `DeleteExts` →
+  Trash, `Categories` ext→dest moves (`mkdir -p`, overwrite like
+  `Move-Item -Force`), unrecognized → Skip. Precedence:
+  IgnorePatterns (case-insensitive filename glob) > IncludeOnly >
+  AdvancedRules (Ignore|Delete|MoveTo, always wins; empty-destination MoveTo
+  is a validated Skip) > DeleteExts > Categories. Shared `CleanupLog.txt`
+  auditing, real-run-only logging, `X deleted, Y skipped` summary.
+* `scripts/ScreenshotsCleanup/` — non-recursive age deletes to Trash,
+  IgnorePatterns, missing folder logs SKIPPED + exits cleanly, log lines
+  carry the self-identifying `ScreenshotsCleanup …` prefix (shared log).
+* `scripts/EmptyFolderCleanup/` — multi-pass recursive empty-dir removal via
+  non-recursive `rmdir` (race-safe, Windows `$false` parity), permanent
+  delete (empty = no data), root never removed, hidden entries count,
+  IgnoreFolders (case-sensitive subtree) beats IncludeOnly, dry-run
+  simulation previews parents emptied by children, full-path log lines.
+* Deletes route through `gio trash` (proven headless, no session needed) —
+  with one platform rule the tests caught red-handed: **gio cannot trash
+  across filesystems** (`/tmp` tmpfs → Trash fails, surfaced as skip+WARN,
+  never silent loss). Fixtures live under `$HOME` for this reason.
+* `Stage5SelfTest` — 25 checks: exact dry-run action matrices (incl.
+  rule-beats-delete-list and pattern-beats-rule), real FS outcomes, Trash
+  landing via gio, log content, include-only narrowing, missing/corrupt
+  configs per script, history rows. `SELF-TEST PASS` (all suites 2–5 green
+  together), user Trash/Downloads/Pictures left byte-identical.
+
 ## Layout (mirrors windows-scripts for reviewability)
 
 ```

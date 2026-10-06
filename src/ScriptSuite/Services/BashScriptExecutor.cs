@@ -162,6 +162,8 @@ public sealed class BashScriptExecutor
         };
         ParseTempCleanupCounts(logs, result.ItemCounts);
         ParseEmptyTrashCounts(logs, result.ItemCounts);
+        ParseDownloadsCounts(logs, result.ItemCounts);
+        ParseScreenshotsCounts(logs, result.ItemCounts);
         return (items, result);
     }
 
@@ -198,6 +200,33 @@ public sealed class BashScriptExecutor
         }
     }
 
+    private static void ParseDownloadsCounts(List<string> logs, Dictionary<string, int> counts)
+    {
+        foreach (var l in logs)
+        {
+            var m = Regex.Match(l, @"DownloadsCleanup:\s*(\d+)\s+deleted,\s*(\d+)\s+skipped");
+            if (m.Success)
+            {
+                counts["Deleted"] = int.Parse(m.Groups[1].Value);
+                counts["Skipped"] = int.Parse(m.Groups[2].Value);
+                return;
+            }
+        }
+    }
+
+    private static void ParseScreenshotsCounts(List<string> logs, Dictionary<string, int> counts)
+    {
+        foreach (var l in logs)
+        {
+            var m = Regex.Match(l, @"ScreenshotsCleanup:\s*(\d+)\s+removed,\s*(\d+)\s+skipped");
+            if (m.Success)
+            {
+                counts["Removed"] = int.Parse(m.Groups[1].Value);
+                counts["Skipped"] = int.Parse(m.Groups[2].Value);
+                return;
+            }
+        }
+    }
     private static void ParseEmptyTrashCounts(List<string> logs, Dictionary<string, int> counts)
     {
         foreach (var l in logs)
