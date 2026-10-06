@@ -212,8 +212,8 @@ while IFS= read -r -d '' f; do
                         write_log "$LOGFILE" "DELETED : $name [advanced rule]"
                         deleted=$(( deleted + 1 ))
                     else
-                        write_log "$LOGFILE" "ERROR   : Failed to delete $name"
-                        warn "Skipped locked file: $canon"
+                        rc=$?
+                        trash_warn "$rc" "$canon" "$name" "$LOGFILE" " [advanced rule]"
                         skipped=$(( skipped + 1 ))
                     fi
                 fi
@@ -253,8 +253,8 @@ while IFS= read -r -d '' f; do
                 write_log "$LOGFILE" "DELETED : $name"
                 deleted=$(( deleted + 1 ))
             else
-                write_log "$LOGFILE" "ERROR   : Failed to delete $name"
-                warn "Skipped locked file: $canon"
+                rc=$?
+                trash_warn "$rc" "$canon" "$name" "$LOGFILE" ""
                 skipped=$(( skipped + 1 ))
             fi
         fi
