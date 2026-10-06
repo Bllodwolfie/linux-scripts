@@ -11,13 +11,13 @@ namespace ScriptSuite.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string _greeting = "ScriptSuite (Linux scaffold — Stage 2: TempCleanup E2E)";
+    private string _greeting = "ScriptSuite (Linux scaffold — Stage 3: EmptyTrash E2E)";
 
     [ObservableProperty]
     private string _statusLines = "initializing…";
 
     [ObservableProperty]
-    private string _stage2Log = "Stage 2 self-test not run yet.";
+    private string _stage2Log = "Self-tests not run yet (Stage 2 TempCleanup + Stage 3 EmptyTrash).";
 
     [ObservableProperty]
     private bool _isSelfTestRunning;
@@ -45,18 +45,27 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>End-to-end proof of the Stage 2 pipeline against a scratch dir
-    /// (never the real /tmp): seed old/new/ignored files, dry-run, real run,
-    /// include-only run, history insert, verify, clean up.</summary>
+    /// <summary>End-to-end proofs of the Stage 2+3 pipelines. TempCleanup runs
+    /// against a scratch dir (never the real /tmp); EmptyTrash runs against
+    /// the real home Trash with gio-trashed test items (user items moved
+    /// aside only for the --empty fast-path probe, then restored).</summary>
     [RelayCommand]
     public async Task RunSelfTestAsync()
     {
         if (IsSelfTestRunning) return;
         IsSelfTestRunning = true;
-        Stage2Log = "Running Stage 2 self-test…";
+        Stage2Log = "Running self-tests…";
         try
         {
-            var lines = await Task.Run(() => Stage2SelfTest.Run());
+            var lines = await Task.Run(() =>
+            {
+                var all = new List<string> { "== Stage 2: TempCleanup ==" };
+                all.AddRange(Stage2SelfTest.Run());
+                all.Add("");
+                all.Add("== Stage 3: EmptyTrash ==");
+                all.AddRange(Stage3SelfTest.Run());
+                return all;
+            });
             Stage2Log = string.Join("\n", lines);
         }
         catch (Exception ex)

@@ -1,0 +1,20 @@
+{
+  "id": "EmptyTrash",
+  "displayName": "Empty Trash",
+  "description": "Permanently empties the XDG Trash (~/.local/share/Trash). Deleted files cannot be recovered. Supports “Only delete items older than N days” (0 = everything).",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/EmptyTrash/EmptyTrash.sh",
+  "fields": [
+    {
+      "name": "MinAgeDays",
+      "label": "Only delete items older than",
+      "type": "int",
+      "unit": "days",
+      "default": 0,
+      "helpText": "Only trash items trashed more than this many days ago will be permanently deleted (0 = everything).",
+      "helpDetail": "Based on the trash timestamp (DeletionDate in info/*.trashinfo), not the file's own modification time. Items with a missing timestamp are deleted when this is 0, conservatively kept otherwise. All deletions remove the files/ + info/ pair directly and verify it is gone (gio trash --empty is a silent no-op on this stack, so it is deliberately not used)."
+    }
+  ]
+}

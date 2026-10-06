@@ -16,12 +16,12 @@
     <ScrollViewer>
     <StackPanel Margin="24" Spacing="12">
         <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold" />
-        <TextBlock Text="Stage 2 — TempCleanup end-to-end. This window proves:" />
-        <TextBlock Text="• Avalonia app boots on KDE Neon&#x0a;• XDG paths resolve&#x0a;• Manifests load&#x0a;• history.db initializes&#x0a;• TempCleanup.sh dry-runs, runs, and records history" />
+        <TextBlock Text="Stage 3 — EmptyTrash end-to-end (plus Stage 2 TempCleanup). This window proves:" />
+        <TextBlock Text="• Avalonia app boots on KDE Neon&#x0a;• XDG paths resolve&#x0a;• Manifests load&#x0a;• history.db initializes&#x0a;• TempCleanup.sh dry-runs, runs, and records history&#x0a;• EmptyTrash.sh enumerates real Trash via gio + trashinfo, age-filters, and records history" />
         <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
             <TextBlock Text="{Binding StatusLines}" FontFamily="monospace" />
         </Border>
-        <Button Content="Run Stage-2 self-test (scratch dir only, never /tmp)"
+        <Button Content="Run self-tests (TempCleanup scratch dir; EmptyTrash real Trash, user items protected)"
                 Command="{Binding RunSelfTestCommand}"
                 IsEnabled="{Binding !IsSelfTestRunning}" />
         <Border BorderBrush="Gray" BorderThickness="1" Padding="12">

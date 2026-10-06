@@ -46,6 +46,32 @@ case on Windows):
   include-only → history insert against a scratch dir (never `/tmp`).
 * Verified: `SELF-TEST PASS` (9/9 checks) headless + GUI boot on Plasma.
 
+## Stage 3 (this commit) — EmptyTrash + Trash contract
+
+Second script through the pipeline (Windows EmptyRecycleBin counterpart):
+
+* `scripts/EmptyTrash/EmptyTrash.sh` — enumerates `info/*.trashinfo`
+  (`Path=` URL-decoded, `DeletionDate=` parsed), sizes `files/<name>`, emits
+  Delete/Skip dry-run items with ages, `MinAgeDays` filter (0 = everything,
+  negative clamps with warning, dateless items deleted only at 0 —
+  same rule as Windows), include-only subset, data-then-metadata pair
+  deletion with gone-verification.
+* **Correction to the scoping report:** `gio trash --empty` is a silent no-op
+  on this stack (GLib 2.80: exits 0, deletes nothing — proven by experiment).
+  All deletions therefore remove the `files/` + `info/` pair directly for
+  whole-trash AND filtered runs; `gio` remains the contract only for
+  trashing/listing/restoring. Two further platform findings: `gio trash`
+  refuses sources on system-internal mounts (`/tmp` tmpfs — test items live
+  under `~/.local/share`), and bash `read` with a tab delimiter drops empty
+  fields (tab is IFS whitespace) — items use unit-separator (`\037`)
+  delimiting so dateless entries can't shift into "20733 days old".
+* `Stage3SelfTest` — against the REAL home Trash: gio-trashes 3 test items,
+  backdates one `DeletionDate` 10 days, strips another's, proves dry-run
+  actions (Delete/Skip/Skip), filtered + include-only deletion, a full
+  MinAgeDays=0 clear with user items moved aside and restored byte-identical,
+  and history insert. 11/11 PASS, trash left exactly as found.
+* Verified: `SELF-TEST PASS` headless (twice, idempotent) + GUI boot.
+
 ## Layout (mirrors windows-scripts for reviewability)
 
 ```

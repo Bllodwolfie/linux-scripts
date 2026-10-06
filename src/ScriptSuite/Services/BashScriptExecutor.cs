@@ -161,6 +161,7 @@ public sealed class BashScriptExecutor
             Logs = logs,
         };
         ParseTempCleanupCounts(logs, result.ItemCounts);
+        ParseEmptyTrashCounts(logs, result.ItemCounts);
         return (items, result);
     }
 
@@ -197,6 +198,18 @@ public sealed class BashScriptExecutor
         }
     }
 
+    private static void ParseEmptyTrashCounts(List<string> logs, Dictionary<string, int> counts)
+    {
+        foreach (var l in logs)
+        {
+            var m = Regex.Match(l, @"Trash:\s*(\d+)\s+item\(s\)\s+permanently deleted");
+            if (m.Success)
+            {
+                counts["Deleted"] = int.Parse(m.Groups[1].Value);
+                return;
+            }
+        }
+    }
     private static void TryDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { }
