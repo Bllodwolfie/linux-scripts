@@ -217,6 +217,11 @@ else
         exit 1
     fi
 fi
+# An empty export is legitimate (nothing in scope to preserve) but must never
+# look like a silent failure: say so explicitly.
+if [[ ! -s "$EXPORT" ]]; then
+    warn "Pre-vacuum export is empty — no entries in scope exist to preserve."
+fi
 
 VAC_ARGS=(--vacuum-time="$VTIME")
 [[ -n "$VSIZE" ]] && VAC_ARGS+=(--vacuum-size="$VSIZE")
