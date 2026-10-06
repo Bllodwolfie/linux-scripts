@@ -1,0 +1,36 @@
+{
+  "id": "TempCleanup",
+  "displayName": "Temp File Cleanup",
+  "description": "Deletes files from the temporary directory that are older than the cutoff. Permanent delete (not via Trash) — /tmp is tmpfs.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/TempCleanup/TempCleanup.sh",
+  "fields": [
+    {
+      "name": "TargetFolder",
+      "label": "Folder to clean",
+      "type": "path",
+      "default": "/tmp",
+      "helpText": "The temp folder this script cleans. Files older than the cutoff will be permanently deleted from here.",
+      "helpDetail": "This is usually /tmp (tmpfs) or $XDG_RUNTIME_DIR. Unlike Downloads/Screenshots cleanup, deletions here are permanent and do NOT go through the XDG Trash — trashing /tmp to ~/.local/share/Trash would copy across filesystems and defeat the purpose. You can point this at another folder, but keep it to a temp-like location."
+    },
+    {
+      "name": "CutoffDays",
+      "label": "Delete files older than",
+      "type": "int",
+      "unit": "days",
+      "default": 7,
+      "helpText": "Files in the temp folder older than this many days will be deleted.",
+      "helpDetail": "Based on last write time. Younger files are left alone. 7 days keeps recent temp files for apps that are still running."
+    },
+    {
+      "name": "IgnoreFolders",
+      "label": "Folders to never delete from",
+      "type": "pathList",
+      "default": [],
+      "helpText": "Files under these folders are never deleted, regardless of age.",
+      "helpDetail": "Each entry is a folder whose files this script will always keep — even old ones — including everything in its subfolders. Matching uses canonical paths. An entry outside the cleaned folder simply never matches. This script only ever deletes files, never folders. Leave empty for default behavior."
+    }
+  ]
+}

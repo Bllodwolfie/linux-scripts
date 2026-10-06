@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ScriptSuite</AssemblyName>
+    <Version>0.1.0</Version>
+    <!-- NOTE: net8.0 target is intentional for Stage 1: only the .NET 8 SDK is
+         installed on the build machine. CI / dev machines with the .NET 10 SDK
+         can retarget to net10.0 with no code changes. Do NOT use net8.0-desktop
+         (Windows-only WPF/WinForms implying). -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Models\" />
+    <AvaloniaResource Include="Assets\**" />
+    <AvaloniaResource Include="Themes\*.axaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.0.10" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.10" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.0.10" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+  </ItemGroup>
+
+  <!-- Shipped assets: manifests describe scripts, default configs seed
+       ~/.config/scriptsuite on first run. Scripts/*.sh land in Stage 2+. -->
+  <ItemGroup>
+    <None Include="Manifests\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="DefaultConfigs\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

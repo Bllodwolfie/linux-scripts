@@ -1,0 +1,5 @@
+{
+  "TargetFolder": "/tmp",
+  "CutoffDays": 7,
+  "IgnoreFolders": []
+}

@@ -1,0 +1,17 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Catppuccin Mocha (dark, default). Stage 1 stub: base surfaces only.
+       Full token set (per-window palettes) lands with the theme pass. -->
+  <Style>
+    <Style.Resources>
+      <Color x:Key="AppBackground">#1E1E2E</Color>
+      <Color x:Key="AppSurface">#313244</Color>
+      <Color x:Key="AppText">#CDD6F4</Color>
+      <Color x:Key="AppAccent">#CBA6F7</Color>
+      <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource AppBackground}" />
+      <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource AppSurface}" />
+      <SolidColorBrush x:Key="TextBrush" Color="{StaticResource AppText}" />
+      <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AppAccent}" />
+    </Style.Resources>
+  </Style>
+</Styles>

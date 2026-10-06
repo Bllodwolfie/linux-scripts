@@ -1,0 +1,25 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ScriptSuite.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="ScriptSuite.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="ScriptSuite">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <StackPanel Margin="24" Spacing="12">
+        <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold" />
+        <TextBlock Text="Stage 1 scaffold — no script execution yet. This window proves:" />
+        <TextBlock Text="• Avalonia app boots on KDE Neon&#x0a;• XDG paths resolve&#x0a;• Manifests load&#x0a;• history.db initializes&#x0a;• Theme preference reads" />
+        <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
+            <TextBlock Text="{Binding StatusLines}" FontFamily="monospace" />
+        </Border>
+    </StackPanel>
+
+</Window>
