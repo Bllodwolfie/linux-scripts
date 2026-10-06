@@ -152,6 +152,16 @@ trash_warn() { # rc canon name logfile tag
     fi
 }
 
+# HTML-escape a string (& < > ") for report output.
+html_escape() { # text
+    local s="$1"
+    s="${s//&/&amp;}"
+    s="${s//</&lt;}"
+    s="${s//>/&gt;}"
+    s="${s//\"/&quot;}"
+    printf '%s' "$s"
+}
+
 # Append "[yyyy-MM-dd HH:mm:ss] message" to a log file (shared CleanupLog.txt
 # convention). Log-dir creation is the caller's job (mkdir -p, best effort).
 write_log() { # logfile message

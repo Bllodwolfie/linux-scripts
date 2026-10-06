@@ -1,0 +1,49 @@
+{
+  "id": "SystemHealthReport",
+  "displayName": "System Health Report",
+  "description": "Generates a self-contained HTML report of system health (CPU, memory, disks, network, errors).",
+  "category": "Reports",
+  "requiresAdmin": false,
+  "supportsDryRun": false,
+  "scriptPath": "scripts/SystemHealthReport/SystemHealthReport.sh",
+  "fields": [
+    {
+      "name": "OutputDir",
+      "label": "Report folder",
+      "type": "path",
+      "default": "$HOME/Documents",
+      "helpText": "Where the HTML report is written."
+    },
+    {
+      "name": "OutputFile",
+      "label": "Report file name",
+      "type": "string",
+      "default": "System_Health_Report.html",
+      "helpText": "The file name of the generated HTML report."
+    },
+    {
+      "name": "MaxTopProcesses",
+      "label": "Top processes to list",
+      "type": "int",
+      "unit": "",
+      "default": 10,
+      "helpText": "How many processes appear in the Top Processes table."
+    },
+    {
+      "name": "MaxErrorEvents",
+      "label": "Max error events",
+      "type": "int",
+      "unit": "",
+      "default": 20,
+      "helpText": "Maximum number of recent error/critical events to list."
+    },
+    {
+      "name": "ErrorWindowHours",
+      "label": "Error look-back window",
+      "type": "int",
+      "unit": "hours",
+      "default": 24,
+      "helpText": "Only look back this many hours for error events."
+    }
+  ]
+}

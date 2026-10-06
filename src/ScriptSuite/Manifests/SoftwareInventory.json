@@ -1,0 +1,20 @@
+{
+  "id": "SoftwareInventory",
+  "displayName": "Software Inventory",
+  "description": "Generates a text report of all installed software.",
+  "category": "Reports",
+  "requiresAdmin": false,
+  "supportsDryRun": false,
+  "scriptPath": "scripts/SoftwareInventory/SoftwareInventory.sh",
+  "fields": [
+    {
+      "name": "OutputFile",
+      "label": "Report file",
+      "type": "path",
+      "pathKind": "file",
+      "default": "$HOME/Documents/Script_Logs/Software_Inventory.txt",
+      "helpText": "Where the generated software inventory report is written.",
+      "helpDetail": "Columns are Name / Version / Arch / Source across dpkg, snap and flatpak sections. Registry-style Publisher/InstallDate columns have no Linux equivalent and are not emulated. Read-only report — no preview, nothing to undo."
+    }
+  ]
+}
