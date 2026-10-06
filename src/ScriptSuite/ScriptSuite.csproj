@@ -29,9 +29,12 @@
   </ItemGroup>
 
   <!-- Shipped assets: manifests describe scripts, default configs seed
-       ~/.config/scriptsuite on first run. Scripts/*.sh land in Stage 2+. -->
+       ~/.config/scriptsuite on first run, Bash scripts stay the source of
+       truth for logic (Stage 2+). -->
   <ItemGroup>
     <None Include="Manifests\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="DefaultConfigs\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\**\*.sh" CopyToOutputDirectory="PreserveNewest"
+          Link="scripts\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

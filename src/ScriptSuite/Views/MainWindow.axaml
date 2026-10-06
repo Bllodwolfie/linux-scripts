@@ -3,7 +3,7 @@
         xmlns:vm="using:ScriptSuite.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
         x:Class="ScriptSuite.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
@@ -13,13 +13,21 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
+    <ScrollViewer>
     <StackPanel Margin="24" Spacing="12">
         <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold" />
-        <TextBlock Text="Stage 1 scaffold — no script execution yet. This window proves:" />
-        <TextBlock Text="• Avalonia app boots on KDE Neon&#x0a;• XDG paths resolve&#x0a;• Manifests load&#x0a;• history.db initializes&#x0a;• Theme preference reads" />
+        <TextBlock Text="Stage 2 — TempCleanup end-to-end. This window proves:" />
+        <TextBlock Text="• Avalonia app boots on KDE Neon&#x0a;• XDG paths resolve&#x0a;• Manifests load&#x0a;• history.db initializes&#x0a;• TempCleanup.sh dry-runs, runs, and records history" />
         <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
             <TextBlock Text="{Binding StatusLines}" FontFamily="monospace" />
         </Border>
+        <Button Content="Run Stage-2 self-test (scratch dir only, never /tmp)"
+                Command="{Binding RunSelfTestCommand}"
+                IsEnabled="{Binding !IsSelfTestRunning}" />
+        <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
+            <TextBlock Text="{Binding Stage2Log}" FontFamily="monospace" />
+        </Border>
     </StackPanel>
+    </ScrollViewer>
 
 </Window>

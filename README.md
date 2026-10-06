@@ -25,7 +25,26 @@ dotnet build src/ScriptSuite -c Release -r linux-x64
 dotnet run --project src/ScriptSuite
 ```
 
-Requires .NET 8 SDK. No `.deb`, no scripts, no elevation, no scheduling yet — those are Stages 2+.
+Requires .NET 8 SDK. No `.deb`, no elevation, no scheduling yet — those are Stages 4+.
+
+## Stage 2 (this commit) — TempCleanup end-to-end
+
+First script through the full pipeline (mirrors how TempCleanup was the proof
+case on Windows):
+
+* `scripts/lib/common.sh` — shared helpers: `INFO:/WARN:/ERROR:/DRYRUN:` log
+  protocol, jq config readers (`cfg_str/cfg_int/cfg_list`), canonical paths,
+  dangerous-root guard. Requires `jq` (`sudo apt install jq`).
+* `scripts/TempCleanup/TempCleanup.sh` — idiomatic Bash: `find -mmin` age
+  filter, files-only, `IgnoreFolders` wins over age and `--include-only`,
+  **permanent `rm`** (never Trash — `/tmp` is tmpfs), corrupt config warns +
+  falls back, missing target warns + `0 deleted, 0 skipped`, dangerous roots
+  (`/`, `/home`, `$HOME`, `/etc`, …) refused with exit 1.
+* `BashScriptExecutor` — spawns `/bin/bash`, parses `DRYRUN:` JSON items,
+  Failed/Warning/Success precedence identical to Windows `ScriptExecutor`.
+* Scaffold UI gained a self-test button running dry-run → real run →
+  include-only → history insert against a scratch dir (never `/tmp`).
+* Verified: `SELF-TEST PASS` (9/9 checks) headless + GUI boot on Plasma.
 
 ## Layout (mirrors windows-scripts for reviewability)
 
