@@ -1,0 +1,45 @@
+{
+  "id": "ClearJournal",
+  "displayName": "Clear Journal",
+  "description": "Exports then vacuums the systemd journal (CPU, boot and service logs). The export is a snapshot for inspection, not a restorable backup.",
+  "category": "System",
+  "requiresAdmin": true,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/ClearJournal/ClearJournal.sh",
+  "fields": [
+    {
+      "name": "Scope",
+      "label": "Which journal",
+      "type": "string",
+      "default": "system",
+      "helpText": "system vacuums the machine journal (needs root via polkit); user vacuums your own journal (usually unprivileged, but root-owned files under /var/log/journal may still need elevation).",
+      "helpDetail": "The Windows version cleared every event log as admin; the Linux default Scope=system is the equivalent and requires elevation through the app. Dry-run preview never needs privilege. Per-volume or remote journals are out of scope."
+    },
+    {
+      "name": "VacuumTime",
+      "label": "Keep entries newer than",
+      "type": "string",
+      "unit": "",
+      "default": "7d",
+      "helpText": "Journal entries older than this are exported, then vacuumed (e.g. 7d, 2weeks, 1month).",
+      "helpDetail": "Passed to journalctl --vacuum-time (same units). The same value classifies boots in the dry-run preview. Empty disables time vacuum; at least one of VacuumTime/VacuumSize must be set."
+    },
+    {
+      "name": "VacuumSize",
+      "label": "Keep total under",
+      "type": "string",
+      "unit": "",
+      "default": "",
+      "helpText": "Optional cap on journal disk use (e.g. 500M). Empty means no size cap.",
+      "helpDetail": "Passed to journalctl --vacuum-size. Size-based deletion cannot be previewed per boot and is not covered by the pre-vacuum export window the way time-based deletion is — the export covers the VacuumTime window."
+    },
+    {
+      "name": "BackupDir",
+      "label": "Export backup folder",
+      "type": "path",
+      "default": "$HOME/Documents/Script_Logs/JournalBackups",
+      "helpText": "Pre-vacuum journal exports land here. A failed export aborts the run before any vacuum.",
+      "helpDetail": "Like the Windows version's rule of never clearing what wasn't backed up: if the export fails (or the folder cannot be created), the run stops with an error and nothing is vacuumed. Exports are `journalctl -o export` snapshots for inspection — they cannot be re-imported the way .evtx files can."
+    }
+  ]
+}

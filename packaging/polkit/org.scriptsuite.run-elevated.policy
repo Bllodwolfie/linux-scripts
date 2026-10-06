@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <!-- Elevated maintenance-task runner. The app re-launches itself via pkexec
+       for admin scripts (ClearJournal system scope); the JSON result-file
+       round-trip carries the outcome back to the unprivileged parent.
+       Installs to /usr/share/polkit-1/actions/ via the .deb (Stage 7).
+       NOTE: polkit does NOT honor per-user action dirs
+       (~/.local/share/polkit-1/actions/ is ignored — verified with pkaction
+       on KDE Neon), so local dev testing needs one sudo copy of the
+       generated dev policy (see scripts/dev-install-policy.sh). -->
+  <action id="org.scriptsuite.run-elevated">
+    <description>Run a ScriptSuite maintenance task with elevated privileges</description>
+    <message>Authentication is required to run the elevated maintenance task</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/scriptsuite/ScriptSuite</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">--elevated-run</annotate>
+  </action>
+</policyconfig>
