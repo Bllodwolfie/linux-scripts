@@ -11,7 +11,7 @@ namespace ScriptSuite.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string _greeting = "ScriptSuite (Linux — Stage 5: file scripts E2E)";
+    private string _greeting = "ScriptSuite (Linux — Stage 6: all 8 scripts E2E)";
 
     [ObservableProperty]
     private string _statusLines = "initializing…";
@@ -72,6 +72,9 @@ public partial class MainViewModel : ViewModelBase
                 all.Add("");
                 all.Add("== Stage 5: Downloads/Screenshots/EmptyFolder ==");
                 all.AddRange(Stage5SelfTest.Run());
+                all.Add("");
+                all.Add("== Stage 6: SoftwareInventory/SystemHealthReport ==");
+                all.AddRange(Stage6SelfTest.Run());
                 return all;
             });
             Stage2Log = string.Join("\n", lines);

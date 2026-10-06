@@ -101,6 +101,27 @@ Three file scripts through the pipeline (Windows counterparts faithful):
   configs per script, history rows. `SELF-TEST PASS` (all suites 2–5 green
   together), user Trash/Downloads/Pictures left byte-identical.
 
+## Stage 6 (this commit) — SoftwareInventory, SystemHealthReport (all 8 scripts)
+
+The two read-only reports (no dry-run contract — asserted via
+`supportsDryRun=false` instead):
+
+* `scripts/SoftwareInventory/` — dpkg-query (installed only, sorted) + snap +
+  flatpak appendices; Name/Version/Arch/Source columns (Publisher/InstallDate
+  have no Linux equivalent, not emulated); B6 output validation (folder target
+  refused); `N packages: D dpkg, S snap, F flatpak` summary.
+* `scripts/SystemHealthReport/` — same single-file Catppuccin Mocha/Latte
+  shell (cards, sidebar, fade/observer JS, theme toggle, footer) with
+  config-driven palettes; collectors all Linux-native (`/proc`, `lscpu`,
+  `df`, `ip -j`, `ps`, per-boot `journalctl -p`, `apt` pending count,
+  `sensors`, DMI strings); updates show *pending* apt count (no last-check
+  COM equivalent — documented); mascots embedded only when the PNGs resolve.
+* `Stage6SelfTest` — 15 checks: real runs with content assertions (bash
+  listed, 10 section ids, hostname), missing/corrupt configs, output-is-dir
+  refusal, history rows. Default-path side effects (missing config writes the
+  real user locations) are snapshotted and swept. `SELF-TEST PASS`, all
+  suites 2–6 green together, user state byte-identical.
+
 ## Layout (mirrors windows-scripts for reviewability)
 
 ```
