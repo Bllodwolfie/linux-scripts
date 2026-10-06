@@ -11,13 +11,13 @@ namespace ScriptSuite.ViewModels;
 public partial class MainViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private string _greeting = "ScriptSuite (Linux scaffold — Stage 3: EmptyTrash E2E)";
+    private string _greeting = "ScriptSuite (Linux — Stage 4: polkit elevation + ClearJournal)";
 
     [ObservableProperty]
     private string _statusLines = "initializing…";
 
     [ObservableProperty]
-    private string _stage2Log = "Self-tests not run yet (Stage 2 TempCleanup + Stage 3 EmptyTrash).";
+    private string _stage2Log = "Self-tests not run yet (Stages 2–4). Interactive elevation checks (real Cancel/Allow clicks) run outside this button.";
 
     [ObservableProperty]
     private bool _isSelfTestRunning;
@@ -45,10 +45,12 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
-    /// <summary>End-to-end proofs of the Stage 2+3 pipelines. TempCleanup runs
-    /// against a scratch dir (never the real /tmp); EmptyTrash runs against
-    /// the real home Trash with gio-trashed test items (user items moved
-    /// aside only for the --empty fast-path probe, then restored).</summary>
+    /// <summary>Headless end-to-end proofs (Stages 2–4). TempCleanup runs
+    /// against a scratch dir; EmptyTrash against the real home Trash with
+    /// gio-trashed test items; ClearJournal against the user journal plus
+    /// consent-gate and direct child round-trip checks. The two tests that
+    /// need a real polkit dialog (Cancel/Allow clicks) are interactive and
+    /// live outside this button by design.</summary>
     [RelayCommand]
     public async Task RunSelfTestAsync()
     {
@@ -64,6 +66,9 @@ public partial class MainViewModel : ViewModelBase
                 all.Add("");
                 all.Add("== Stage 3: EmptyTrash ==");
                 all.AddRange(Stage3SelfTest.Run());
+                all.Add("");
+                all.Add("== Stage 4 (headless): ClearJournal + elevation ==");
+                all.AddRange(Stage4SelfTest.Run());
                 return all;
             });
             Stage2Log = string.Join("\n", lines);

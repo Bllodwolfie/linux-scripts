@@ -1,0 +1,6 @@
+{
+  "Scope": "system",
+  "VacuumTime": "7d",
+  "VacuumSize": "",
+  "BackupDir": "$HOME/Documents/Script_Logs/JournalBackups"
+}
