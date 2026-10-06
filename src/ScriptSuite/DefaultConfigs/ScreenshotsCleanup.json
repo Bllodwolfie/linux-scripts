@@ -1,0 +1,7 @@
+{
+  "TargetFolder": "$HOME/Pictures/Screenshots",
+  "CutoffDays": 7,
+  "LogDir": "$HOME/Documents/Script_Logs",
+  "LogFile": "CleanupLog.txt",
+  "IgnorePatterns": []
+}

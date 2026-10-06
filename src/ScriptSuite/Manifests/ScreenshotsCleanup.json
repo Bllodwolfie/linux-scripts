@@ -1,0 +1,36 @@
+{
+  "id": "ScreenshotsCleanup",
+  "displayName": "Screenshots Cleanup",
+  "description": "Deletes old screenshots from the Pictures/Screenshots folder.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/ScreenshotsCleanup/ScreenshotsCleanup.sh",
+  "fields": [
+    {
+      "name": "TargetFolder",
+      "label": "Folder to clean",
+      "type": "path",
+      "default": "$HOME/Pictures/Screenshots",
+      "helpText": "The Screenshots folder this script cleans.",
+      "helpDetail": "Only files directly in this folder are checked — subfolders are ignored. Deletes go through the XDG Trash (same filesystem only). If the folder does not exist yet, the script does nothing."
+    },
+    {
+      "name": "CutoffDays",
+      "label": "Delete files older than",
+      "type": "int",
+      "unit": "days",
+      "default": 7,
+      "helpText": "Screenshots older than this many days will be deleted.",
+      "helpDetail": "Files go to the XDG Trash, so you can restore them. Based on last write time — younger screenshots are left alone."
+    },
+    {
+      "name": "IgnorePatterns",
+      "label": "Filename patterns to never touch",
+      "type": "patternList",
+      "default": [],
+      "helpText": "Files whose name matches any pattern are never deleted, regardless of age.",
+      "helpDetail": "Glob-style patterns matched against the filename only (not the folder path), ignoring case — e.g. pinned_* keeps every file starting with pinned_, *keep* keeps any file with keep in the name. A pattern with no wildcards matches that exact filename. Leave empty for default behavior."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "SourceDir": "$HOME/Downloads",
+  "CutoffDays": 7,
+  "LogDir": "$HOME/Documents/Script_Logs",
+  "LogFile": "CleanupLog.txt",
+  "DeleteExts": [".zip", ".rar", ".7z", ".ttf", ".otf", ".exe", ".msi"],
+  "IgnorePatterns": [],
+  "AdvancedRules": {},
+  "Categories": {
+    "$HOME/Music/Misc": [".aac", ".aiff", ".alac", ".ape", ".dsf", ".flac", ".m4a", ".m4b", ".mid", ".midi", ".mp3", ".oga", ".ogg", ".opus", ".wav", ".wma"],
+    "$HOME/Videos/Misc": [".3gp", ".asf", ".avi", ".flv", ".m2ts", ".m4v", ".mkv", ".mov", ".mp4", ".mpeg", ".mpg", ".ogv", ".ts", ".vob", ".webm", ".wmv"],
+    "$HOME/Pictures/Misc": [".avif", ".bmp", ".cr2", ".dng", ".eps", ".gif", ".heic", ".heif", ".ico", ".jpeg", ".jpg", ".nef", ".png", ".psd", ".raw", ".svg", ".tif", ".tiff", ".webp"],
+    "$HOME/Documents/Modeling": [".3dm", ".3ds", ".3mf", ".blend", ".c4d", ".dae", ".dxf", ".fbx", ".glb", ".gltf", ".iges", ".igs", ".lwo", ".lxo", ".max", ".mb", ".ma", ".obj", ".ply", ".skp", ".sldasm", ".sldprt", ".step", ".stp", ".stl", ".usdz", ".vrml", ".wrl", ".x3d"],
+    "$HOME/Documents/Spreadsheets": [".csv", ".numbers", ".ods", ".tsv", ".xls", ".xlsb", ".xlsm", ".xlsx", ".xlt", ".xltm", ".xltx", ".xlw"],
+    "$HOME/Documents/Presentations": [".key", ".odp", ".pps", ".ppsx", ".ppt", ".pptm", ".pptx", ".pot", ".potm", ".potx"],
+    "$HOME/Documents/Text": [".doc", ".docb", ".docm", ".docx", ".dot", ".dotm", ".dotx", ".epub", ".log", ".md", ".msg", ".odt", ".pdf", ".rtf", ".tex", ".txt", ".wpd", ".wps"],
+    "$HOME/Documents/Configuration": [".cfg", ".conf", ".config", ".edmx", ".env", ".hjson", ".ics", ".inc", ".inf", ".ini", ".ipynb", ".json", ".jsonc", ".nfo", ".plist", ".properties", ".reg", ".resx", ".sql", ".strings", ".template", ".tmpl", ".toml", ".vdf", ".xaml", ".xml", ".xsd", ".xslt", ".yaml", ".yml"]
+  }
+}

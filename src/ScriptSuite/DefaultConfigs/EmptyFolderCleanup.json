@@ -1,0 +1,6 @@
+{
+  "TargetFolder": "$HOME/Downloads",
+  "IgnoreFolders": [],
+  "LogDir": "$HOME/Documents/Script_Logs",
+  "LogFile": "CleanupLog.txt"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "DownloadsCleanup",
+  "displayName": "Downloads Cleanup",
+  "description": "Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders.",
+  "category": "Cleanup",
+  "requiresAdmin": false,
+  "supportsDryRun": true,
+  "scriptPath": "scripts/DownloadsCleanup/DownloadsCleanup.sh",
+  "fields": [
+    {
+      "name": "SourceDir",
+      "label": "Folder to clean",
+      "type": "path",
+      "default": "$HOME/Downloads",
+      "helpText": "The Downloads folder this script sorts and cleans.",
+      "helpDetail": "Only files directly in this folder are checked — subfolders are ignored. Deletes go through the XDG Trash (same filesystem only — gio cannot trash across filesystems, and such failures surface as skips, never silent loss). You can point this at a different folder, but it should be a dedicated downloads-style folder."
+    },
+    {
+      "name": "CutoffDays",
+      "label": "Only touch files older than",
+      "type": "int",
+      "unit": "days",
+      "default": 7,
+      "helpText": "Files younger than this are left untouched.",
+      "helpDetail": "Age is based on the file's last write time. 0 means every file counts as old. Younger files are left alone even if they match the delete list, a category, or an Advanced Rule."
+    },
+    {
+      "name": "DeleteExts",
+      "label": "Extensions to delete",
+      "type": "stringList",
+      "default": [".zip", ".rar", ".7z", ".ttf", ".otf", ".exe", ".msi"],
+      "helpText": "Files with these extensions are deleted instead of moved. One extension per tag, starting with a dot.",
+      "helpDetail": "These files go to the XDG Trash, not permanent delete. Other old files are moved into category folders. If an Advanced Rule exists for the same extension, that rule wins — even if the extension is listed here."
+    },
+    {
+      "name": "IgnorePatterns",
+      "label": "Filename patterns to never touch",
+      "type": "patternList",
+      "default": [],
+      "helpText": "Files whose name matches any pattern are never touched, regardless of extension rules.",
+      "helpDetail": "Glob-style patterns matched against the filename only (not the folder path), ignoring case — e.g. pinned_* keeps every file starting with pinned_, *keep* keeps any file with keep in the name. Checked before Advanced Rules, the delete list, and category moves: an ignored filename wins over everything. Leave empty for default behavior."
+    }
+  ]
+}
