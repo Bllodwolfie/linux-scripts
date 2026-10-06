@@ -123,9 +123,33 @@ matches_pattern_list() { # name pat...
 
 # Trash one file via gio (recoverable delete for user data). Returns 0 only
 # when the file is actually gone afterwards — never report false success.
+# Exit 2 specifically means cross-filesystem: gio cannot trash to the home
+# Trash from another mount (proven with /tmp tmpfs), so callers can say so
+# instead of misreporting "locked". Exit 1 is any other failure.
 trash_file() { # path
-    gio trash -- "$1" 2>/dev/null || return 1
-    [[ ! -e "$1" && ! -L "$1" ]]
+    if gio trash -- "$1" 2>/dev/null; then
+        [[ ! -e "$1" && ! -L "$1" ]]
+        return
+    fi
+    local fd td trashdir="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
+    fd=$(stat -c %d -- "$1" 2>/dev/null) || return 1
+    td=$(stat -c %d -- "$trashdir" 2>/dev/null) || return 1
+    [[ "$fd" != "$td" ]] && return 2
+    return 1
+}
+
+# Shared failure reporting for trash_file's exit code (1 = locked/other,
+# 2 = cross-filesystem). The tag (e.g. " [advanced rule]") appends to the log
+# line, mirroring the Windows per-rule log suffixes.
+trash_warn() { # rc canon name logfile tag
+    local rc="$1" canon="$2" name="$3" logfile="$4" tag="$5"
+    if [[ "$rc" -eq 2 ]]; then
+        write_log "$logfile" "ERROR   : Cannot trash $name (cross-filesystem — gio limitation)$tag"
+        warn "Skipped (cannot trash across filesystems): $canon"
+    else
+        write_log "$logfile" "ERROR   : Failed to delete $name$tag"
+        warn "Skipped locked file: $canon"
+    fi
 }
 
 # Append "[yyyy-MM-dd HH:mm:ss] message" to a log file (shared CleanupLog.txt
