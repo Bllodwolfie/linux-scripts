@@ -1,0 +1,42 @@
+#!/usr/bin/make -f
+# Hand-rolled rules (no debhelper): the only build tooling needed is the
+# .NET SDK plus dpkg-dev. `dpkg-buildpackage -us -uc -b` from the repo root
+# produces ../scriptsuite_<version>_amd64.deb.
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+export DOTNET_NOLOGO=1
+VERSION := $(shell dpkg-parsechangelog -S Version)
+
+build build-arch build-indep:
+	dotnet publish src/ScriptSuite/ScriptSuite.csproj -c Release -r linux-x64 \
+		--self-contained -p:PublishSingleFile=true -p:InvariantGlobalization=true \
+		-o debian/publish
+
+binary binary-arch binary-indep:
+	mkdir -p debian/scriptsuite/usr/lib/scriptsuite
+	cp -a debian/publish/. debian/scriptsuite/usr/lib/scriptsuite/
+	mkdir -p debian/scriptsuite/usr/share/applications
+	cp packaging/scriptsuite.desktop debian/scriptsuite/usr/share/applications/
+	mkdir -p debian/scriptsuite/usr/share/polkit-1/actions
+	cp packaging/polkit/org.scriptsuite.run-elevated.policy \
+		debian/scriptsuite/usr/share/polkit-1/actions/
+	mkdir -p debian/scriptsuite/DEBIAN
+	du -sk debian/scriptsuite | cut -f1 > debian/.installed-size
+	printf '%s\n' \
+		'Package: scriptsuite' \
+		'Version: $(VERSION)' \
+		'Architecture: amd64' \
+		'Maintainer: ScriptSuite Maintainer <maintainer@localhost>' \
+		'Installed-Size: '"$$(cat debian/.installed-size)" \
+		'Depends: policykit-1' \
+		'Description: Desktop maintenance tasks with systemd scheduling' \
+		' ScriptSuite runs small, auditable Bash maintenance scripts from an' \
+		' Avalonia dashboard on KDE Neon, with per-script systemd user timers' \
+		' for unattended runs and polkit elevation for interactive admin runs.' \
+		> debian/scriptsuite/DEBIAN/control
+	dpkg-deb --build debian/scriptsuite ..
+	echo "scriptsuite_$(VERSION)_amd64.deb utils optional" > debian/files
+
+clean:
+	rm -rf debian/publish debian/scriptsuite debian/.installed-size
+	rm -f debian/files debian/*.log debian/*.substvars debian/*.debhelper
+.PHONY: build build-arch build-indep binary binary-arch binary-indep clean

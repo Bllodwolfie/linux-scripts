@@ -3,7 +3,7 @@
         xmlns:vm="using:ScriptSuite.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
         x:Class="ScriptSuite.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
@@ -15,13 +15,80 @@
 
     <ScrollViewer>
     <StackPanel Margin="24" Spacing="12">
-        <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold" />
-        <TextBlock Text="Stage 3 — EmptyTrash end-to-end (plus Stage 2 TempCleanup). This window proves:" />
-        <TextBlock Text="• Avalonia app boots on KDE Neon&#x0a;• XDG paths resolve&#x0a;• Manifests load&#x0a;• history.db initializes&#x0a;• TempCleanup.sh dry-runs, runs, and records history&#x0a;• EmptyTrash.sh enumerates real Trash via gio + trashinfo, age-filters, and records history" />
+        <DockPanel>
+            <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold"
+                       VerticalAlignment="Center" />
+            <Button Content="Refresh" Command="{Binding RefreshCommand}"
+                    HorizontalAlignment="Right" DockPanel.Dock="Right" />
+        </DockPanel>
+
+        <ItemsControl ItemsSource="{Binding Cards}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ScriptCardViewModel">
+                    <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6"
+                            Padding="12" Margin="0,0,0,4">
+                        <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding DisplayName}"
+                                           FontSize="15" FontWeight="Bold"
+                                           VerticalAlignment="Center" />
+                                <Border Background="OrangeRed" CornerRadius="4"
+                                        Padding="6,1"
+                                        IsVisible="{Binding RequiresAdmin}">
+                                    <TextBlock Text="ADMIN" FontSize="11"
+                                               Foreground="White" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Description}"
+                                       TextWrapping="Wrap" Opacity="0.8" />
+                            <TextBlock Text="{Binding ScheduleSummary}"
+                                       IsVisible="{Binding HasSchedule}"
+                                       Foreground="DodgerBlue" FontSize="12" />
+                            <TextBlock Text="{Binding LastRunText, StringFormat='Last run: {0}'}"
+                                       FontSize="12" Opacity="0.8" />
+                            <TextBlock Text="{Binding RunStatus}" FontSize="12"
+                                       TextWrapping="Wrap" />
+                            <CheckBox Content="I understand the risks"
+                                      IsChecked="{Binding RiskConsented}"
+                                      IsVisible="{Binding RequiresAdmin}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Run"
+                                        Command="{Binding RunCommand}"
+                                        IsEnabled="{Binding !IsRunning}" />
+                                <Button Content="Schedule…"
+                                        Command="{Binding OpenScheduleCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="Recent runs" FontSize="15" FontWeight="Bold" />
         <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
-            <TextBlock Text="{Binding StatusLines}" FontFamily="monospace" />
+            <ItemsControl ItemsSource="{Binding RecentRuns}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" FontFamily="monospace"
+                                   FontSize="12" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </Border>
-        <Button Content="Run self-tests (TempCleanup scratch dir; EmptyTrash real Trash, user items protected)"
+
+        <TextBlock Text="Scheduled runs" FontSize="15" FontWeight="Bold" />
+        <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
+            <ItemsControl ItemsSource="{Binding RecentScheduled}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" FontFamily="monospace"
+                                   FontSize="12" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <Button Content="Run self-tests"
                 Command="{Binding RunSelfTestCommand}"
                 IsEnabled="{Binding !IsSelfTestRunning}" />
         <Border BorderBrush="Gray" BorderThickness="1" Padding="12">

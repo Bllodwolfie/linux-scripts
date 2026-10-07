@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ScriptSuite.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="360"
+        x:Class="ScriptSuite.Views.ScheduleDialog"
+        x:DataType="vm:ScheduleDialogViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="{Binding Title}"
+        Width="420" Height="380" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="20" Spacing="10">
+        <TextBlock Text="Every" FontWeight="Bold" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBox Text="{Binding IntervalText}" Width="70" />
+            <ComboBox SelectedIndex="{Binding UnitIndex}" Width="130">
+                <ComboBoxItem Content="Days" />
+                <ComboBoxItem Content="Hours" />
+                <ComboBoxItem Content="Weeks" />
+            </ComboBox>
+            <TextBlock Text="at" VerticalAlignment="Center" />
+            <TextBox Text="{Binding TimeText}" Width="80" ToolTip.Tip="HH:mm e.g. 09:00" />
+        </StackPanel>
+        <TextBlock Text="Intervals over a day run on a rolling basis from the moment you save (systemd limitation) — the card shows the honest wording."
+                   TextWrapping="Wrap" Opacity="0.7" FontSize="12" />
+
+        <CheckBox Content="I understand the risks (required for admin scripts)"
+                  IsChecked="{Binding RiskConsented}"
+                  IsVisible="{Binding ShowRisk}" />
+        <TextBlock Text="{Binding AdminTimerWarning}"
+                   IsVisible="{Binding ShowRisk}"
+                   TextWrapping="Wrap" Foreground="OrangeRed" FontSize="12" />
+
+        <TextBlock Text="{Binding ErrorText}" Foreground="OrangeRed"
+                   TextWrapping="Wrap" FontSize="12" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Save" Command="{Binding SaveCommand}" IsDefault="True" />
+            <Button Content="Remove schedule" Command="{Binding RemoveCommand}"
+                    IsVisible="{Binding ShowRemove}" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" />
+        </StackPanel>
+    </StackPanel>
+
+</Window>
