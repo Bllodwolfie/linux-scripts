@@ -39,6 +39,12 @@ public partial class MainViewModel : ViewModelBase
     /// Null in headless contexts (cards then run inline).</summary>
     public Func<ScriptRunViewModel, Task>? ShowRunWindow { get; set; }
 
+    /// <summary>Set by the view: shows manual run history. Null headless.</summary>
+    public Func<HistoryViewModel, Task>? ShowHistory { get; set; }
+
+    /// <summary>Set by the view: shows scheduled-run history. Null headless.</summary>
+    public Func<ScheduledHistoryViewModel, Task>? ShowScheduledHistory { get; set; }
+
     public MainViewModel(
         ManifestCatalog? catalog = null,
         BashScriptExecutor? executor = null,
@@ -103,6 +109,16 @@ public partial class MainViewModel : ViewModelBase
             card.RefreshSchedule();
         RefreshHistories();
     }
+
+    [RelayCommand]
+    public Task OpenHistoryAsync() => ShowHistory is null
+        ? Task.CompletedTask
+        : ShowHistory(new HistoryViewModel(_history, _catalog, LogDetailResolver.Production()));
+
+    [RelayCommand]
+    public Task OpenScheduledHistoryAsync() => ShowScheduledHistory is null
+        ? Task.CompletedTask
+        : ShowScheduledHistory(new ScheduledHistoryViewModel(_history, _catalog));
 
     public void RefreshHistories()
     {

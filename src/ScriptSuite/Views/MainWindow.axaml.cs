@@ -27,6 +27,16 @@ public partial class MainWindow : Window
                     await win.ShowDialog<bool?>(this);
                     vm.Refresh();
                 };
+                vm.ShowHistory = async historyVm =>
+                {
+                    var win = new HistoryWindow { DataContext = historyVm };
+                    await win.ShowDialog<bool?>(this);
+                };
+                vm.ShowScheduledHistory = async scheduledVm =>
+                {
+                    var win = new ScheduledHistoryWindow { DataContext = scheduledVm };
+                    await win.ShowDialog<bool?>(this);
+                };
             }
         };
     }
