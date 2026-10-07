@@ -1,0 +1,10 @@
+#!/bin/sh
+# Only refresh the desktop database. Deliberately does NOT enable or start
+# any systemd timers: scheduling stays a per-user opt-in from the dashboard.
+set -e
+if [ "$1" = configure ]; then
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database -q
+    fi
+fi
+#DEBHELPER#

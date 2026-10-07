@@ -1,13 +1,15 @@
 Source: scriptsuite
 Section: utils
 Priority: optional
-Maintainer: ScriptSuite Maintainer <maintainer@localhost>
-Build-Depends: dpkg-dev, build-essential:native
+Maintainer: Bllodwolfie <Bllodwolfie@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13), dotnet-sdk-8.0
 Standards-Version: 4.6.2
+Rules-Requires-Root: no
 
 Package: scriptsuite
 Architecture: amd64
-Depends: policykit-1
+Depends: ${shlibs:Depends}, ${misc:Depends}, pkexec, polkitd, jq, xdg-user-dirs, systemd, libglib2.0-bin
+Recommends: lm-sensors
 Description: Desktop maintenance tasks with systemd scheduling
  ScriptSuite runs small, auditable Bash maintenance scripts (temp cleanup,
  downloads/screenshots tidying, trash emptying, journal vacuum, software

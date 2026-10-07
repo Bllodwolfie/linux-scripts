@@ -1,0 +1,3 @@
+debian/publish/* usr/lib/scriptsuite
+packaging/scriptsuite.desktop usr/share/applications
+packaging/polkit/org.scriptsuite.run-elevated.policy usr/share/polkit-1/actions
