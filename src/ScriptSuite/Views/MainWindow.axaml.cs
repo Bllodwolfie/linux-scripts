@@ -21,6 +21,12 @@ public partial class MainWindow : Window
                     };
                     return await dlg.ShowDialog<bool?>(this) == true;
                 };
+                vm.ShowRunWindow = async runVm =>
+                {
+                    var win = new ScriptRunWindow { DataContext = runVm };
+                    await win.ShowDialog<bool?>(this);
+                    vm.Refresh();
+                };
             }
         };
     }

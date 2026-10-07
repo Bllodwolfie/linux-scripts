@@ -27,25 +27,40 @@ public sealed class BashScriptExecutor
     public BashScriptExecutor(ManifestCatalog catalog) => _catalog = catalog;
 
     /// <summary>Runs a script's dry-run and returns the structured preview
-    /// items plus the run's log output. Never changes anything.</summary>
-    public (List<DryRunItem> Items, ScriptRunResult Result) GetDryRunItems(string scriptId, string configPath)
+    /// items plus the run's log output. Never changes anything.
+    /// A cancelled token kills the child and yields a Cancelled result.</summary>
+    public (List<DryRunItem> Items, ScriptRunResult Result) GetDryRunItems(
+        string scriptId, string configPath, CancellationToken cancellationToken = default)
     {
-        return Invoke(scriptId, configPath, dryRun: true, includeOnly: null, onLogLine: null);
+        return Invoke(scriptId, configPath, dryRun: true, includeOnly: null, onLogLine: null, cancellationToken);
     }
 
     /// <summary>Runs a script (dry-run or real). includeOnly restricts the run
     /// to the listed Target values; onLogLine receives each output line live.
-    /// Runs on the calling thread; UI callers must dispatch to a worker.</summary>
+    /// Runs on the calling thread; UI callers must dispatch to a worker.
+    /// A cancelled token kills the whole child process tree and yields
+    /// a Cancelled result instead of Failed.</summary>
     public ScriptRunResult Execute(string scriptId, string configPath, bool dryRun,
-        IReadOnlyList<string>? includeOnly = null, Action<string>? onLogLine = null)
+        IReadOnlyList<string>? includeOnly = null, Action<string>? onLogLine = null,
+        CancellationToken cancellationToken = default)
     {
-        return Invoke(scriptId, configPath, dryRun, includeOnly, onLogLine).Result;
+        return Invoke(scriptId, configPath, dryRun, includeOnly, onLogLine, cancellationToken).Result;
     }
 
     private (List<DryRunItem> Items, ScriptRunResult Result) Invoke(
         string scriptId, string configPath, bool dryRun,
-        IReadOnlyList<string>? includeOnly, Action<string>? onLogLine)
+        IReadOnlyList<string>? includeOnly, Action<string>? onLogLine,
+        CancellationToken cancellationToken)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return (new List<DryRunItem>(), new ScriptRunResult
+            {
+                Outcome = RunOutcome.Cancelled,
+                ScriptId = scriptId,
+                Logs = new List<string> { "Cancelled before the script started." },
+            });
+        }
         var manifest = _catalog.Find(scriptId)
             ?? throw new InvalidOperationException($"Manifest not found: {scriptId}");
         string scriptPath = manifest.AbsoluteScriptPath;
@@ -99,6 +114,10 @@ public sealed class BashScriptExecutor
         {
             using var child = Process.Start(psi)
                 ?? throw new InvalidOperationException("Process.Start returned null.");
+            using var killOnCancel = cancellationToken.Register(() =>
+            {
+                try { child.Kill(entireProcessTree: true); } catch { }
+            });
             string? line;
             while ((line = child.StandardOutput.ReadLine()) is not null)
             {
@@ -142,6 +161,19 @@ public sealed class BashScriptExecutor
         {
             if (includePath is not null)
                 TryDelete(includePath);
+        }
+
+        // Cancel wins over everything the dying child managed to print:
+        // a killed tree exits nonzero (SIGTERM), which must not read as Failed.
+        if (cancellationToken.IsCancellationRequested)
+        {
+            logs.Add("Cancelled by user.");
+            return (items, new ScriptRunResult
+            {
+                Outcome = RunOutcome.Cancelled,
+                ScriptId = scriptId,
+                Logs = logs,
+            });
         }
 
         if (exitCode != 0)

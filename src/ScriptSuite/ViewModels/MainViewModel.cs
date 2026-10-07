@@ -35,6 +35,10 @@ public partial class MainViewModel : ViewModelBase
     /// returns whether the schedule changed. Null in headless contexts.</summary>
     public Func<ScriptCardViewModel, Task<bool>>? ShowScheduleDialog { get; set; }
 
+    /// <summary>Set by the view: opens the Run window for a run ViewModel.
+    /// Null in headless contexts (cards then run inline).</summary>
+    public Func<ScriptRunViewModel, Task>? ShowRunWindow { get; set; }
+
     public MainViewModel(
         ManifestCatalog? catalog = null,
         BashScriptExecutor? executor = null,
@@ -61,11 +65,25 @@ public partial class MainViewModel : ViewModelBase
         {
             var card = new ScriptCardViewModel(manifest, _executor, _elevation,
                 _history, Schedules, _consents, _configPathFor(manifest.Id),
-                OpenScheduleAsync);
+                OpenScheduleAsync, OpenRunAsync);
             card.Ran += (_, _) => RefreshHistories();
             Cards.Add(card);
         }
         RefreshHistories();
+    }
+
+    /// <summary>Card Run entry: production opens the Run window (which runs
+    /// and records history itself); headless runs inline.</summary>
+    public async Task OpenRunAsync(ScriptCardViewModel card)
+    {
+        if (ShowRunWindow is null)
+        {
+            await card.RunInlineAsync();
+            return;
+        }
+        var runVm = new ScriptRunViewModel(card.Manifest, _executor, _elevation,
+            _consents, _history, _configPathFor(card.Manifest.Id));
+        await ShowRunWindow(runVm);
     }
 
     public async Task OpenScheduleAsync(ScriptCardViewModel card)

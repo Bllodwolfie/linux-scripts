@@ -6,10 +6,9 @@ using ScriptSuite.Services;
 namespace ScriptSuite.ViewModels;
 
 /// <summary>One dashboard card: a script plus its live schedule/last-run state.
-/// Run executes on a worker thread (blocking pkexec auth dialogs must never
-/// sit on the UI thread) and records into manual RunHistory; Schedule opens
-/// the schedule dialog through the parent-provided hook so this ViewModel
-/// stays window-free and headless-testable.</summary>
+/// Run opens the Run window through the parent-provided hook (live output,
+/// preview, cancel); with no hook (headless tests) it runs inline via
+/// RunInlineAsync. Window-free and headless-testable either way.</summary>
 public partial class ScriptCardViewModel : ViewModelBase
 {
     private readonly BashScriptExecutor _executor;
@@ -19,6 +18,7 @@ public partial class ScriptCardViewModel : ViewModelBase
     private readonly RiskConsentStore _consents;
     private readonly string _configPath;
     private readonly Func<ScriptCardViewModel, Task> _openSchedule;
+    private readonly Func<ScriptCardViewModel, Task> _openRun;
 
     public ScriptManifest Manifest { get; }
     public string DisplayName => Manifest.DisplayName;
@@ -41,7 +41,8 @@ public partial class ScriptCardViewModel : ViewModelBase
         ScheduleStore schedules,
         RiskConsentStore consents,
         string configPath,
-        Func<ScriptCardViewModel, Task> openSchedule)
+        Func<ScriptCardViewModel, Task> openSchedule,
+        Func<ScriptCardViewModel, Task>? openRun = null)
     {
         Manifest = manifest;
         _executor = executor;
@@ -51,6 +52,7 @@ public partial class ScriptCardViewModel : ViewModelBase
         _consents = consents;
         _configPath = configPath;
         _openSchedule = openSchedule;
+        _openRun = openRun ?? (card => card.RunInlineAsync());
         RefreshSchedule();
     }
 
@@ -81,7 +83,16 @@ public partial class ScriptCardViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public async Task RunAsync()
+    public Task RunAsync()
+    {
+        if (IsRunning) return Task.CompletedTask;
+        return _openRun(this);
+    }
+
+    /// <summary>Legacy inline run (headless path): executes on a worker
+    /// thread and records into manual RunHistory. Production uses the Run
+    /// window instead; the window inserts history itself.</summary>
+    public async Task RunInlineAsync()
     {
         if (IsRunning) return;
         if (RequiresAdmin && !RiskConsented)

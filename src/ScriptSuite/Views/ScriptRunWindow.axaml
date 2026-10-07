@@ -1,0 +1,95 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ScriptSuite.ViewModels"
+        x:Class="ScriptSuite.Views.ScriptRunWindow"
+        x:DataType="vm:ScriptRunViewModel"
+        Title="{Binding Title}"
+        Width="840" Height="620" MinWidth="600" MinHeight="420">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24,16,24,18">
+        <!-- Row 0: header -->
+        <StackPanel Grid.Row="0" Spacing="4">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding DisplayName}"
+                               FontSize="20" FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <Border Background="OrangeRed" CornerRadius="4" Padding="6,1"
+                            IsVisible="{Binding ShowAdminBadge}"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="ADMIN" FontSize="11" Foreground="White" />
+                    </Border>
+                </StackPanel>
+                <Button Content="?" Command="{Binding ToggleHelpCommand}"
+                        Width="24" Height="24" HorizontalAlignment="Right"
+                        DockPanel.Dock="Right" />
+            </DockPanel>
+            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.8" />
+            <TextBlock Text="{Binding AdminNote}" IsVisible="{Binding ShowAdminBadge}"
+                       Foreground="DarkOrange" FontSize="13" />
+            <Border IsVisible="{Binding HelpVisible}" BorderBrush="Gray"
+                    BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,6,0,0">
+                <TextBlock Text="{Binding HelpText}" TextWrapping="Wrap" FontSize="13" />
+            </Border>
+        </StackPanel>
+
+        <!-- Row 1: preview panel / outcome banner -->
+        <StackPanel Grid.Row="1" Margin="0,14,0,6">
+            <StackPanel IsVisible="{Binding PreviewVisible}" Spacing="4">
+                <TextBlock Text="{Binding PreviewMessage}" TextWrapping="Wrap"
+                           Opacity="0.8" />
+                <ListBox ItemsSource="{Binding Selections}" Height="200">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RunSelectionItem">
+                            <Border BorderBrush="Gray" BorderThickness="1"
+                                    CornerRadius="6" Padding="8,6">
+                                <StackPanel Spacing="2">
+                                    <CheckBox IsChecked="{Binding IsChecked}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding ActionDisplay}"
+                                                       FontWeight="SemiBold" FontSize="11" />
+                                            <TextBlock Text="{Binding Target}"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <TextBlock Text="{Binding Detail}" FontSize="12"
+                                               Opacity="0.7" Margin="24,2,0,0"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock Text="{Binding SelectionCountText}" FontSize="13"
+                           Opacity="0.7" />
+            </StackPanel>
+            <TextBlock Text="{Binding StatusText}" FontSize="16"
+                       FontWeight="SemiBold" />
+        </StackPanel>
+
+        <!-- Row 2: live log -->
+        <StackPanel Grid.Row="2" Spacing="4" Margin="0,10,0,0">
+            <TextBlock Text="Output" FontSize="13" FontWeight="SemiBold" />
+            <ListBox ItemsSource="{Binding LogLines}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" FontFamily="monospace"
+                                   FontSize="12" TextWrapping="Wrap" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+        <!-- Row 3: footer -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Confirm" Command="{Binding ConfirmCommand}"
+                    IsEnabled="{Binding ConfirmEnabled}" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}"
+                    IsVisible="{Binding CancelVisible}" />
+            <Button Content="Close" Command="{Binding CloseCommand}"
+                    IsEnabled="{Binding CloseEnabled}" />
+        </StackPanel>
+    </Grid>
+
+</Window>

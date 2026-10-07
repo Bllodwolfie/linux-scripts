@@ -35,8 +35,14 @@ public sealed class PolkitElevationService
         _consents = consents;
     }
 
+    /// <summary>Runs an admin script elevated via pkexec. includeOnly narrows
+    /// the run to the listed Targets; onLogLine receives live-log lines.
+    /// A cancelled token attempts to kill the pkexec tree — note a root-owned
+    /// child may refuse SIGTERM from the user, in which case the run completes
+    /// and its real outcome is reported. No result file + cancel = Cancelled.</summary>
     public ScriptRunResult RunElevated(string scriptId, string configPath,
-        IReadOnlyList<string>? includeOnly = null, Action<string>? onLogLine = null)
+        IReadOnlyList<string>? includeOnly = null, Action<string>? onLogLine = null,
+        CancellationToken cancellationToken = default)
     {
         var manifest = _catalog.Find(scriptId)
             ?? throw new InvalidOperationException($"Manifest not found: {scriptId}");
@@ -101,11 +107,16 @@ public sealed class PolkitElevationService
             };
         }
 
+        using var killOnCancel = cancellationToken.Register(() =>
+        {
+            try { child.Kill(entireProcessTree: true); } catch { }
+        });
+
         if (onLogLine != null)
         {
             int emitted = 0;
             string carry = "";
-            while (!child.HasExited)
+            while (!child.HasExited && !cancellationToken.IsCancellationRequested)
             {
                 (emitted, carry) = PumpLiveLog(liveLog, emitted, carry, onLogLine);
                 Thread.Sleep(LivePollMs);
@@ -117,6 +128,18 @@ public sealed class PolkitElevationService
         child.WaitForExit();
         TryDelete(liveLog);
         TryDelete(includePath);
+
+        // Cancel with no result file: the tree died before writing anything.
+        // If a result file exists the run genuinely finished — report it.
+        if (cancellationToken.IsCancellationRequested && !File.Exists(resultPath))
+        {
+            return new ScriptRunResult
+            {
+                Outcome = RunOutcome.Cancelled,
+                ScriptId = scriptId,
+                Logs = new List<string> { "Cancelled by user." },
+            };
+        }
 
         // pkexec 126/127 = dismissed or failed authorization (the polkit
         // analogue of declining UAC). Never report those as Failed.
