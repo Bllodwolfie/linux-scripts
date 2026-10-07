@@ -1,0 +1,7 @@
+# Self-contained Avalonia publish bundles SkiaSharp's own copies of these libs; unavoidable.
+scriptsuite: embedded-library expat [usr/lib/scriptsuite/libSkiaSharp.so]
+scriptsuite: embedded-library freetype [usr/lib/scriptsuite/libSkiaSharp.so]
+scriptsuite: embedded-library libjpeg [usr/lib/scriptsuite/libSkiaSharp.so]
+scriptsuite: embedded-library libpng [usr/lib/scriptsuite/libSkiaSharp.so]
+# The .so files live in the app-private dir (no ld.so path), so the ldconfig trigger is pointless.
+scriptsuite: package-has-unnecessary-activation-of-ldconfig-trigger
