@@ -1,0 +1,16 @@
+Source: scriptsuite
+Section: utils
+Priority: optional
+Maintainer: ScriptSuite Maintainer <maintainer@localhost>
+Build-Depends: dpkg-dev, build-essential:native
+Standards-Version: 4.6.2
+
+Package: scriptsuite
+Architecture: amd64
+Depends: policykit-1
+Description: Desktop maintenance tasks with systemd scheduling
+ ScriptSuite runs small, auditable Bash maintenance scripts (temp cleanup,
+ downloads/screenshots tidying, trash emptying, journal vacuum, software
+ inventory, system health reports) from an Avalonia dashboard on KDE Neon.
+ Per-script systemd user timers provide unattended runs; admin tasks
+ elevate via polkit (pkexec) for interactive runs only.

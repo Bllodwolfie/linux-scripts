@@ -3,3 +3,11 @@ obj/
 .vs/
 *.user
 .vscode/
+# debian packaging byproducts (the .deb itself lives outside the repo)
+*.deb
+*.buildinfo
+*.changes
+debian/files
+debian/publish/
+debian/scriptsuite/
+debian/.installed-size

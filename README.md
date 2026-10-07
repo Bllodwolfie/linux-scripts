@@ -25,7 +25,21 @@ dotnet build src/ScriptSuite -c Release -r linux-x64
 dotnet run --project src/ScriptSuite
 ```
 
-Requires .NET 8 SDK. No `.deb`, no elevation, no scheduling yet — those are Stages 4+.
+Requires .NET 8 SDK. Elevation (Stage 4) and scheduling (Stage 7a) are in;
+the `.deb` ships as of Stage 7b (see below).
+
+## Install (.deb)
+
+```bash
+dpkg-buildpackage -us -uc -b -d   # -d: build-essential meta-package not installed; make/gcc are present
+sudo dpkg -i ../scriptsuite_0.1.0_amd64.deb
+```
+
+Self-contained single-file publish (`/usr/lib/scriptsuite/ScriptSuite`,
+~86 MB installed) — no .NET runtime dependency. `Depends: policykit-1`
+only. Installs the polkit action (`org.scriptsuite.run-elevated`, exec path
+`/usr/lib/scriptsuite/ScriptSuite --elevated-run`) and the `.desktop` entry.
+Hand-rolled `debian/rules` (no debhelper — only `dpkg-dev` + toolchain needed).
 
 ## Stage 2 (this commit) — TempCleanup end-to-end
 
@@ -151,6 +165,36 @@ Unattended runs via user timers (no dashboard UI yet — that’s 7b):
   untouched, a **genuine `OnActiveSec` timer firing** into the full
   binary→script→history path, unknown-id exit 1. `SELF-TEST PASS`, all
   suites 2–7a green together, no timers/scratch/residue left behind.
+
+## Stage 7b (this commit) — dashboard + package
+
+The scaffold window is now a real dashboard (Run + Schedule + History scope;
+no settings editors — configs stay file-edited):
+
+* One card per script in `BuiltInOrder`: description, ADMIN badge (only
+  ClearJournal), Run + Schedule buttons, live `◷` schedule summary (honest
+  `SummaryFor` wording), last manual run, risk checkbox for admin scripts.
+  Run executes on a worker thread (blocking pkexec dialogs never sit on the
+  UI thread) and records into manual `RunHistory`; admin Run without consent
+  refuses with a status-line hint.
+* Schedule dialog ports Windows `ScheduleWindow`: Every [N] [Days|Hours|
+  Weeks] at [HH:mm], same validation (integer 1–365, parseable time, admin
+  needs risk opt-in), pre-fill + Remove. Save registers the timer *first*
+  and only then persists the store entry — a failed enable can never leave
+  a phantom schedule. Admin scripts carry an explicit warning: user timers
+  cannot elevate, so scheduled ClearJournal runs record Failed; manual runs
+  use pkexec.
+* Recent runs + Scheduled runs sections (separation enforced and tested).
+* `Stage7bSelfTest` — 24 checks, all headless against temp stores: card
+  model, 4 bad intervals + bad time + admin-without-consent rejected
+  without touching systemd, save/remove round-trip, pre-fill, a real
+  TempCleanup through the card Run path (FS proof + history row + refresh),
+  a real systemd round-trip through the dialog's *default* funcs, history
+  separation. `SELF-TEST PASS`, suites 2–7b green together.
+* GUI proven on Plasma: window present (`xwininfo`), zero exceptions.
+* `.deb` (see Install above): verified by extracting and running the
+  shipped layout with isolated XDG roots — real TempCleanup, exit 0,
+  `ScheduledRuns` row. `desktop-file-validate` clean.
 
 ## Layout (mirrors windows-scripts for reviewability)
 

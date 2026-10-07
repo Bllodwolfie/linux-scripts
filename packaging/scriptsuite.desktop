@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ScriptSuite
+Comment=Desktop maintenance tasks with scheduling
+Exec=/usr/lib/scriptsuite/ScriptSuite
+Icon=system-run
+Terminal=false
+Categories=System;
+StartupWMClass=ScriptSuite
