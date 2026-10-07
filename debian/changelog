@@ -1,6 +1,6 @@
-scriptsuite (0.1.0) unstable; urgency=low
+scriptsuite (0.1.0) noble; urgency=low
 
   * Stage 7b: Avalonia dashboard (run, schedule, history), systemd user
     timers, .deb packaging with polkit policy and desktop entry.
 
- -- ScriptSuite Maintainer <maintainer@localhost>  Wed, 07 Oct 2026 00:00:00 +0000
+ -- Bllodwolfie <Bllodwolfie@users.noreply.github.com>  Wed, 07 Oct 2026 18:27:55 +0200
