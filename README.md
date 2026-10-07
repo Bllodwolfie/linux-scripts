@@ -122,6 +122,36 @@ The two read-only reports (no dry-run contract — asserted via
   real user locations) are snapshotted and swept. `SELF-TEST PASS`, all
   suites 2–6 green together, user state byte-identical.
 
+## Stage 7a (this commit) — systemd scheduling engine
+
+Unattended runs via user timers (no dashboard UI yet — that’s 7b):
+
+* `SystemdScheduleService` — one tier only (no Interactive/S4U split):
+  writes `~/.config/systemd/user/scriptsuite-<id>.service/.timer`,
+  `ExecStart=<binary> --scheduled-run <id>`, `daemon-reload` +
+  `enable --now`, verified via `is-enabled`. Dialog-model mapping:
+  daily/weekly-at-time → `OnCalendar` (wall-clock exact); hourly and N>1
+  day/week intervals → `OnUnitActiveSec` + `Persistent` (interval measured
+  from enable — documented compromise vs Task Scheduler, `SummaryFor()`
+  words it honestly). Timeouts mirror Windows (5 s query, 20 s register,
+  kill-on-timeout). Elevated scripts scheduled as timers fail loudly at
+  execution (EUID guard → `Failed` row) — no silent privileged background
+  runs; the dashboard will warn at schedule time.
+* `Program --scheduled-run` — headless execute + `ScheduledRuns` insert
+  (never manual `RunHistory`); single-instance via raw-fd `flock`
+  (`LOCK_EX|LOCK_NB`, busy → `SkippedBusy` row, never queued). Raw fds are
+  load-bearing: .NET `FileStream` enforces `FileShare` with its own flock
+  on Unix, so opening the lock file the managed way throws *before* the
+  explicit lock ever runs (found empirically). Exit 0 on
+  Success/Warning/SkippedBusy, 1 on Failed/unknown id (failed units stay
+  visible in systemd).
+* `Stage7aSelfTest` — 14 checks: register/list/unregister against the live
+  user systemd, `ScheduleStore` round-trip, direct run (row + FS proof +
+  history separation), externally-held lock → `SkippedBusy` with target
+  untouched, a **genuine `OnActiveSec` timer firing** into the full
+  binary→script→history path, unknown-id exit 1. `SELF-TEST PASS`, all
+  suites 2–7a green together, no timers/scratch/residue left behind.
+
 ## Layout (mirrors windows-scripts for reviewability)
 
 ```
