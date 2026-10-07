@@ -1,0 +1,118 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ScriptSuite.ViewModels"
+        x:Class="ScriptSuite.Views.RunAllPreviewWindow"
+        x:DataType="vm:RunAllViewModel"
+        Title="Run All — Preview"
+        Width="900" Height="640" MinWidth="640" MinHeight="480">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24,18,24,20">
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="Run All — Preview" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="This is what each enabled script would do. EmptyTrash always runs first in the batch."
+                       TextWrapping="Wrap" Opacity="0.8" />
+            <TextBlock Text="{Binding SummaryText}" TextWrapping="Wrap"
+                       FontWeight="SemiBold" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
+            <ItemsControl ItemsSource="{Binding Sections}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RunScriptPreviewItem">
+                        <Border BorderBrush="Gray" BorderThickness="1"
+                                CornerRadius="8" Padding="14,10" Margin="0,0,0,8">
+                            <StackPanel Spacing="4">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                                Spacing="8">
+                                        <Border Background="OrangeRed" CornerRadius="4"
+                                                Padding="6,1"
+                                                IsVisible="{Binding ShowAdminShield}"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="ADMIN" FontSize="11"
+                                                       Foreground="White" />
+                                        </Border>
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="16" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding StatusText}"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,Auto"
+                                      IsVisible="{Binding HasPreviewItems}">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding PreviewCollapsedSummary}"
+                                               IsVisible="{Binding !IsPreviewExpanded}"
+                                               Opacity="0.8" TextWrapping="Wrap"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="0" Text="Preview items:"
+                                               IsVisible="{Binding IsPreviewExpanded}"
+                                               Opacity="0.8"
+                                               VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Content="{Binding ToggleButtonText}"
+                                            Click="TogglePreview_Click" />
+                                </Grid>
+
+                                <ItemsControl ItemsSource="{Binding PreviewItems}"
+                                              IsVisible="{Binding IsPreviewExpanded}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock FontSize="12" TextWrapping="Wrap">
+                                                <Run Text="{Binding ActionDisplay}"
+                                                     FontWeight="Bold" />
+                                                <Run Text="  " />
+                                                <Run Text="{Binding Target}" />
+                                                <Run Text="  —  " />
+                                                <Run Text="{Binding Detail}" />
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="{Binding PreviewMessage}"
+                                           Opacity="0.8" TextWrapping="Wrap"
+                                           IsVisible="{Binding !HasPreviewItems}" />
+
+                                <Button Content="{Binding LogsToggleLabel}"
+                                        IsVisible="{Binding HasLogs}"
+                                        Click="ToggleLogs_Click" />
+                                <ScrollViewer MaxHeight="140"
+                                              IsVisible="{Binding IsLogsExpanded}">
+                                    <ItemsControl ItemsSource="{Binding Logs}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}"
+                                                           FontFamily="monospace"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Spacing="8" Margin="0,10,0,0">
+            <TextBlock Text="{Binding ProgressText}"
+                       IsVisible="{Binding ProgressVisible}"
+                       TextWrapping="Wrap" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        HorizontalAlignment="Right">
+                <Button Content="Confirm and run all"
+                        Command="{Binding ConfirmCommand}"
+                        IsEnabled="{Binding ConfirmEnabled}" />
+                <Button Content="Close" Command="{Binding CloseCommand}"
+                        IsEnabled="{Binding !IsRunning}" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+
+</Window>

@@ -37,6 +37,11 @@ public partial class MainWindow : Window
                     var win = new ScheduledHistoryWindow { DataContext = scheduledVm };
                     await win.ShowDialog<bool?>(this);
                 };
+                vm.ShowRunAll = async runAllVm =>
+                {
+                    var win = new RunAllPreviewWindow { DataContext = runAllVm };
+                    await win.ShowDialog<bool?>(this);
+                };
             }
         };
     }

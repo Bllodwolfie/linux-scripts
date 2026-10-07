@@ -19,6 +19,7 @@ public partial class ScriptCardViewModel : ViewModelBase
     private readonly string _configPath;
     private readonly Func<ScriptCardViewModel, Task> _openSchedule;
     private readonly Func<ScriptCardViewModel, Task> _openRun;
+    private readonly DashboardStateStore? _dashboard;
 
     public ScriptManifest Manifest { get; }
     public string DisplayName => Manifest.DisplayName;
@@ -31,6 +32,13 @@ public partial class ScriptCardViewModel : ViewModelBase
     [ObservableProperty] private string _runStatus = "";
     [ObservableProperty] private bool _isRunning;
 
+    /// <summary>Dashboard "Run All" include checkbox. Persisted immediately
+    /// to dashboard.json (Windows parity); null store = headless default true.</summary>
+    [ObservableProperty] private bool _runAllIncluded = true;
+
+    partial void OnRunAllIncludedChanged(bool value) =>
+        _dashboard?.SetRunAll(Manifest.Id, value);
+
     public event EventHandler? Ran;
 
     public ScriptCardViewModel(
@@ -42,7 +50,8 @@ public partial class ScriptCardViewModel : ViewModelBase
         RiskConsentStore consents,
         string configPath,
         Func<ScriptCardViewModel, Task> openSchedule,
-        Func<ScriptCardViewModel, Task>? openRun = null)
+        Func<ScriptCardViewModel, Task>? openRun = null,
+        DashboardStateStore? dashboard = null)
     {
         Manifest = manifest;
         _executor = executor;
@@ -53,6 +62,8 @@ public partial class ScriptCardViewModel : ViewModelBase
         _configPath = configPath;
         _openSchedule = openSchedule;
         _openRun = openRun ?? (card => card.RunInlineAsync());
+        _dashboard = dashboard;
+        _runAllIncluded = dashboard?.IsRunAllEnabled(manifest.Id) ?? true;
         RefreshSchedule();
     }
 

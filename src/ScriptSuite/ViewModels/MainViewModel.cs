@@ -19,6 +19,7 @@ public partial class MainViewModel : ViewModelBase
     private readonly RunHistoryStore _history;
     private readonly Func<string, string> _configPathFor;
     private readonly RiskConsentStore _consents;
+    private readonly DashboardStateStore _dashboard;
 
     public ScheduleStore Schedules { get; }
     public RiskConsentStore Consents { get; }
@@ -30,6 +31,8 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _greeting = "ScriptSuite (Linux — Stage 7b: dashboard + package)";
     [ObservableProperty] private string _stage2Log = "Self-tests not run yet.";
     [ObservableProperty] private bool _isSelfTestRunning;
+    [ObservableProperty] private bool _isRunning;
+    [ObservableProperty] private bool _runAllEnabled;
 
     /// <summary>Set by the view: opens the schedule dialog for a card and
     /// returns whether the schedule changed. Null in headless contexts.</summary>
@@ -52,7 +55,8 @@ public partial class MainViewModel : ViewModelBase
         RunHistoryStore? history = null,
         ScheduleStore? schedules = null,
         RiskConsentStore? consents = null,
-        Func<string, string>? configPathFor = null)
+        Func<string, string>? configPathFor = null,
+        DashboardStateStore? dashboard = null)
     {
         bool production = catalog is null;
         if (production)
@@ -66,17 +70,62 @@ public partial class MainViewModel : ViewModelBase
         Schedules = schedules ?? new ScheduleStore(AppPaths.SchedulesPath);
         Consents = _consents;
         _configPathFor = configPathFor ?? AppPaths.ConfigPathFor;
+        _dashboard = dashboard ?? new DashboardStateStore(AppPaths.DashboardStatePath);
 
         foreach (var manifest in _catalog.All)
         {
             var card = new ScriptCardViewModel(manifest, _executor, _elevation,
                 _history, Schedules, _consents, _configPathFor(manifest.Id),
-                OpenScheduleAsync, OpenRunAsync);
+                OpenScheduleAsync, OpenRunAsync, _dashboard);
             card.Ran += (_, _) => RefreshHistories();
+            card.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ScriptCardViewModel.RunAllIncluded))
+                    RefreshRunAllEnabled();
+            };
             Cards.Add(card);
         }
         RefreshHistories();
+        RefreshRunAllEnabled();
     }
+
+    /// <summary>Run All target set: enabled + visible + (non-admin or
+    /// explicitly risk-consented). Admin exclusion without consent is a Linux
+    /// policy addition — Windows runs them with per-leg UAC instead.</summary>
+    public List<ScriptManifest> RunAllOrder() =>
+        _catalog.BatchOrder(id =>
+            _dashboard.IsRunAllEnabled(id) && !_dashboard.IsHidden(id)
+            && (_catalog.Find(id) is not { RequiresAdmin: true } || _consents.HasConsent(id)));
+
+    public void RefreshRunAllEnabled() =>
+        RunAllEnabled = _catalog.All.Any(m =>
+            _dashboard.IsRunAllEnabled(m.Id) && !_dashboard.IsHidden(m.Id)) && !IsRunning;
+
+    partial void OnIsRunningChanged(bool value) => RefreshRunAllEnabled();
+
+    [RelayCommand]
+    public async Task OpenRunAllAsync()
+    {
+        if (IsRunning) return;
+        var order = RunAllOrder();
+        if (order.Count == 0 || ShowRunAll is null) return;
+        IsRunning = true;
+        try
+        {
+            var runAllVm = new RunAllViewModel(order, _executor, _elevation,
+                _consents, _history, _configPathFor);
+            await ShowRunAll(runAllVm);
+        }
+        finally
+        {
+            IsRunning = false;
+            Refresh();
+        }
+    }
+
+    /// <summary>Set by the view: opens the Run All preview window.
+    /// Null in headless contexts.</summary>
+    public Func<RunAllViewModel, Task>? ShowRunAll { get; set; }
 
     /// <summary>Card Run entry: production opens the Run window (which runs
     /// and records history itself); headless runs inline.</summary>
