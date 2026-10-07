@@ -11,3 +11,9 @@ debian/files
 debian/publish/
 debian/scriptsuite/
 debian/.installed-size
+# dh sequencer byproducts
+debian/.debhelper/
+debian/*.log
+debian/*.substvars
+debian/*.debhelper
+debian/debhelper-build-stamp
