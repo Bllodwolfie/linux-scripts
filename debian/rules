@@ -22,6 +22,8 @@ override_dh_auto_clean:
 
 # The self-contained .NET single-file binary must NOT be stripped: it carries
 # no debuginfo dh_strip could use, and stripping risks corrupting the bundle.
-# Empty targets also suppress the useless -dbgsym package.
+# Only the plain bundled C library is stripped (lintian
+# unstripped-binary-or-object). Empty dh_dwz suppresses the useless -dbgsym.
 override_dh_strip:
+	strip --strip-unneeded debian/scriptsuite/usr/lib/scriptsuite/libe_sqlite3.so
 override_dh_dwz:
