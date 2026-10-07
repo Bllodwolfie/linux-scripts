@@ -19,6 +19,9 @@ public static class Stage6SelfTest
 
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)!;
         string cfgDir = Path.Combine(AppPaths.RuntimeRoot, $"scriptsuite_stage6_cfg_{Guid.NewGuid():N}");
+        // History assertions run against a scratch DB, never the user's real
+        // history.db.
+        string historyPath = Path.Combine(AppPaths.RuntimeRoot, $"scriptsuite_stage6_hist_{Guid.NewGuid():N}.db");
         // Default-path side effects: missing/corrupt configs make the scripts
         // write the REAL user locations. Snapshot pre-existence up front; the
         // outer finally removes anything the suite created (belt and braces
@@ -37,8 +40,8 @@ public static class Stage6SelfTest
                     && catalog.Find("SystemHealthReport")?.SupportsDryRun == false,
                 "both reports declare supportsDryRun=false (no dry-run contract to test)");
 
-            lines.AddRange(Inventory(executor, home, cfgDir));
-            lines.AddRange(Health(executor, home, cfgDir));
+            lines.AddRange(Inventory(executor, home, cfgDir, historyPath));
+            lines.AddRange(Health(executor, home, cfgDir, historyPath));
             lines.Add("SELF-TEST " + (lines.Any(l => l.StartsWith("FAIL")) ? "FAIL" : "PASS"));
         }
         catch (Exception ex)
@@ -53,13 +56,15 @@ public static class Stage6SelfTest
                 if (!invPre) TryDelete(invDefault);
                 if (!hrPre) TryDelete(hrDefault);
                 if (Directory.Exists(cfgDir)) Directory.Delete(cfgDir, recursive: true);
+                foreach (var p in new[] { historyPath, historyPath + "-wal", historyPath + "-shm" })
+                    TryDelete(p);
             }
             catch { }
         }
         return lines;
     }
 
-    private static List<string> Inventory(BashScriptExecutor executor, string home, string cfgDir)
+    private static List<string> Inventory(BashScriptExecutor executor, string home, string cfgDir, string historyPath)
     {
         var lines = new List<string>();
         void Check(bool ok, string label) => lines.Add((ok ? "PASS " : "FAIL ") + "[si] " + label);
@@ -93,7 +98,7 @@ public static class Stage6SelfTest
         var blocked = executor.Execute("SoftwareInventory", blockCfg, dryRun: false);
         Check(blocked.Outcome == RunOutcome.Failed, $"folder-as-output refused (got {blocked.Outcome})");
 
-        var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+        var history = new RunHistoryStore(historyPath);
         history.Insert("SoftwareInventory", DateTime.Now.AddSeconds(-5), DateTime.Now,
             real.Outcome, RunHistoryStore.BuildSummary(real.Logs));
         Check(history.GetLatestByScript().TryGetValue("SoftwareInventory", out var row) && row.Outcome == "Success",
@@ -101,7 +106,7 @@ public static class Stage6SelfTest
         return lines;
     }
 
-    private static List<string> Health(BashScriptExecutor executor, string home, string cfgDir)
+    private static List<string> Health(BashScriptExecutor executor, string home, string cfgDir, string historyPath)
     {
         var lines = new List<string>();
         void Check(bool ok, string label) => lines.Add((ok ? "PASS " : "FAIL ") + "[hr] " + label);
@@ -156,7 +161,7 @@ public static class Stage6SelfTest
         var blocked = executor.Execute("SystemHealthReport", dirCfg, dryRun: false);
         Check(blocked.Outcome == RunOutcome.Failed, $"output-is-folder refused (got {blocked.Outcome})");
 
-        var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+        var history = new RunHistoryStore(historyPath);
         history.Insert("SystemHealthReport", DateTime.Now.AddSeconds(-5), DateTime.Now,
             real.Outcome, RunHistoryStore.BuildSummary(real.Logs));
         Check(history.GetLatestByScript().TryGetValue("SystemHealthReport", out var row) && row.Outcome == "Success",

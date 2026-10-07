@@ -21,15 +21,18 @@ public static class Stage5SelfTest
         string trashFiles = TrashDir(home, "files");
         string trashInfo = TrashDir(home, "info");
         string cfgDir = Path.Combine(AppPaths.RuntimeRoot, $"scriptsuite_stage5_cfg_{Guid.NewGuid():N}");
+        // History assertions run against a scratch DB, never the user's real
+        // history.db.
+        string historyPath = Path.Combine(AppPaths.RuntimeRoot, $"scriptsuite_stage5_hist_{Guid.NewGuid():N}.db");
         try
         {
             Directory.CreateDirectory(cfgDir);
             var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
             var executor = new BashScriptExecutor(catalog);
 
-            lines.AddRange(Downloads(executor, home, cfgDir, trashInfo));
-            lines.AddRange(Screenshots(executor, home, cfgDir));
-            lines.AddRange(EmptyFolders(executor, home, cfgDir));
+            lines.AddRange(Downloads(executor, home, cfgDir, trashInfo, historyPath));
+            lines.AddRange(Screenshots(executor, home, cfgDir, historyPath));
+            lines.AddRange(EmptyFolders(executor, home, cfgDir, historyPath));
             lines.Add("SELF-TEST " + (lines.Any(l => l.StartsWith("FAIL")) ? "FAIL" : "PASS"));
         }
         catch (Exception ex)
@@ -55,6 +58,8 @@ public static class Stage5SelfTest
                 if (Directory.Exists(shotRoot) && !Directory.GetFileSystemEntries(shotRoot).Any())
                     Directory.Delete(shotRoot);
                 if (Directory.Exists(cfgDir)) Directory.Delete(cfgDir, recursive: true);
+                foreach (var p in new[] { historyPath, historyPath + "-wal", historyPath + "-shm" })
+                    try { if (File.Exists(p)) File.Delete(p); } catch { }
             }
             catch { }
         }
@@ -63,7 +68,7 @@ public static class Stage5SelfTest
 
     // ---------------------------------------------------------- Downloads
 
-    private static List<string> Downloads(BashScriptExecutor executor, string home, string cfgDir, string trashInfo)
+    private static List<string> Downloads(BashScriptExecutor executor, string home, string cfgDir, string trashInfo, string historyPath)
     {
         var lines = new List<string>();
         void Check(bool ok, string label) => lines.Add((ok ? "PASS " : "FAIL ") + "[dl] " + label);
@@ -138,7 +143,7 @@ public static class Stage5SelfTest
         var (_, corruptDry) = executor.GetDryRunItems("DownloadsCleanup", Path.Combine(cfgDir, "corrupt.json"));
         Check(corruptDry.Outcome == RunOutcome.Warning, $"corrupt config warns (got {corruptDry.Outcome})");
 
-        var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+        var history = new RunHistoryStore(historyPath);
         history.Insert("DownloadsCleanup", DateTime.Now.AddSeconds(-5), DateTime.Now,
             real.Outcome, RunHistoryStore.BuildSummary(real.Logs));
         Check(history.GetLatestByScript().TryGetValue("DownloadsCleanup", out var row) && row.Outcome == "Success",
@@ -148,7 +153,7 @@ public static class Stage5SelfTest
 
     // -------------------------------------------------------- Screenshots
 
-    private static List<string> Screenshots(BashScriptExecutor executor, string home, string cfgDir)
+    private static List<string> Screenshots(BashScriptExecutor executor, string home, string cfgDir, string historyPath)
     {
         var lines = new List<string>();
         void Check(bool ok, string label) => lines.Add((ok ? "PASS " : "FAIL ") + "[sc] " + label);
@@ -207,7 +212,7 @@ public static class Stage5SelfTest
         var (_, corruptDry) = executor.GetDryRunItems("ScreenshotsCleanup", Path.Combine(cfgDir, "corrupt-sc.json"));
         Check(corruptDry.Outcome == RunOutcome.Warning, $"corrupt config warns (got {corruptDry.Outcome})");
 
-        var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+        var history = new RunHistoryStore(historyPath);
         history.Insert("ScreenshotsCleanup", DateTime.Now.AddSeconds(-5), DateTime.Now,
             real.Outcome, RunHistoryStore.BuildSummary(real.Logs));
         Check(history.GetLatestByScript().TryGetValue("ScreenshotsCleanup", out var row) && row.Outcome == "Success",
@@ -217,7 +222,7 @@ public static class Stage5SelfTest
 
     // -------------------------------------------------------- EmptyFolders
 
-    private static List<string> EmptyFolders(BashScriptExecutor executor, string home, string cfgDir)
+    private static List<string> EmptyFolders(BashScriptExecutor executor, string home, string cfgDir, string historyPath)
     {
         var lines = new List<string>();
         void Check(bool ok, string label) => lines.Add((ok ? "PASS " : "FAIL ") + "[ef] " + label);
@@ -282,7 +287,7 @@ public static class Stage5SelfTest
         var (_, corruptDry) = executor.GetDryRunItems("EmptyFolderCleanup", Path.Combine(cfgDir, "corrupt-ef.json"));
         Check(corruptDry.Outcome == RunOutcome.Warning, $"corrupt config warns (got {corruptDry.Outcome})");
 
-        var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+        var history = new RunHistoryStore(historyPath);
         history.Insert("EmptyFolderCleanup", DateTime.Now.AddSeconds(-5), DateTime.Now,
             real.Outcome, RunHistoryStore.BuildSummary(real.Logs));
         Check(history.GetLatestByScript().TryGetValue("EmptyFolderCleanup", out var row) && row.Outcome == "Success",
