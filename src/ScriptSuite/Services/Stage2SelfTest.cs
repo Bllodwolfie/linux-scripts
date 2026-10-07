@@ -19,6 +19,10 @@ public static class Stage2SelfTest
         string keepDir = Path.Combine(scratch, "keep");
         string configPath = Path.Combine(AppPaths.RuntimeRoot,
             "scriptsuite_stage2_test_config.json");
+        // History assertions run against a scratch DB, never the user's real
+        // history.db (same rule as the RuntimeRoot config above).
+        string historyPath = Path.Combine(AppPaths.RuntimeRoot,
+            $"scriptsuite_stage2_hist_{Guid.NewGuid():N}.db");
         try
         {
             if (Directory.Exists(scratch))
@@ -75,7 +79,7 @@ public static class Stage2SelfTest
             Check(only.Outcome == RunOutcome.Success, $"include-only outcome is Success (got {only.Outcome})");
 
             // 4. History round-trip with the shared summary builder.
-            var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+            var history = new RunHistoryStore(historyPath);
             var started = DateTime.Now.AddSeconds(-5);
             history.Insert("TempCleanup", started, DateTime.Now, result.Outcome,
                 RunHistoryStore.BuildSummary(result.Logs));
@@ -94,6 +98,8 @@ public static class Stage2SelfTest
         {
             try { if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true); } catch { }
             try { if (File.Exists(configPath)) File.Delete(configPath); } catch { }
+            foreach (var p in new[] { historyPath, historyPath + "-wal", historyPath + "-shm" })
+                try { if (File.Exists(p)) File.Delete(p); } catch { }
         }
         return lines;
     }

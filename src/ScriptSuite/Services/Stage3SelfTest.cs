@@ -25,6 +25,10 @@ public static class Stage3SelfTest
         string filesDir = Path.Combine(trashDir, "files");
         string infoDir = Path.Combine(trashDir, "info");
         string tag = Prefix + Guid.NewGuid().ToString("N")[..8] + "-";
+        // History assertions run against a scratch DB, never the user's real
+        // history.db.
+        string historyPath = Path.Combine(AppPaths.RuntimeRoot,
+            $"scriptsuite_stage3_hist_{Guid.NewGuid():N}.db");
 
         var initialFiles = Snapshot(filesDir);
         var initialInfo = Snapshot(infoDir);
@@ -116,7 +120,7 @@ public static class Stage3SelfTest
                     "user trash byte-identical (names) after move-aside + restore");
 
                 // --- Phase C: history ---
-                var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+                var history = new RunHistoryStore(historyPath);
                 history.Insert("EmptyTrash", DateTime.Now.AddSeconds(-5), DateTime.Now,
                     RunOutcome.Success, RunHistoryStore.BuildSummary(
                         executor.GetDryRunItems("EmptyTrash", config7).Result.Logs));
@@ -153,6 +157,8 @@ public static class Stage3SelfTest
                 if (backupRoot is not null)
                     Restore(backupRoot, filesDir, infoDir);
                 TryDeleteDir(Path.Combine(AppPaths.DataRoot, "stage3-src"));
+                foreach (var p in new[] { historyPath, historyPath + "-wal", historyPath + "-shm" })
+                    TryDelete(p);
             }
             catch { }
         }

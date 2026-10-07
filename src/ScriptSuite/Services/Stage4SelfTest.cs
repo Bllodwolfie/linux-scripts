@@ -20,6 +20,9 @@ public static class Stage4SelfTest
         string consentPath = Path.Combine(AppPaths.RuntimeRoot,
             $"scriptsuite_stage4_consents_{Guid.NewGuid():N}.json");
         string cfgDir = Path.Combine(AppPaths.RuntimeRoot, $"scriptsuite_stage4_cfg_{Guid.NewGuid():N}");
+        // History assertions run against a scratch DB, never the user's real
+        // history.db.
+        string historyPath = Path.Combine(AppPaths.RuntimeRoot, $"scriptsuite_stage4_hist_{Guid.NewGuid():N}.db");
         try
         {
             Directory.CreateDirectory(cfgDir);
@@ -141,7 +144,7 @@ public static class Stage4SelfTest
                 $"system real as non-root refused (got {sysReal.Outcome})");
 
             // --- 9. history round-trip ---
-            var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+            var history = new RunHistoryStore(historyPath);
             history.Insert("ClearJournal", DateTime.Now.AddSeconds(-5), DateTime.Now,
                 real.Outcome, RunHistoryStore.BuildSummary(real.Logs));
             var latest = history.GetLatestByScript();
@@ -159,6 +162,8 @@ public static class Stage4SelfTest
         {
             try { if (Directory.Exists(cfgDir)) Directory.Delete(cfgDir, recursive: true); } catch { }
             try { if (File.Exists(consentPath)) File.Delete(consentPath); } catch { }
+            foreach (var p in new[] { historyPath, historyPath + "-wal", historyPath + "-shm" })
+                try { if (File.Exists(p)) File.Delete(p); } catch { }
             try
             {
                 string tc = Path.Combine(AppPaths.DataRoot, "stage4-tc");
