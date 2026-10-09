@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:ScriptSuite.Controls"
+        x:Class="ScriptSuite.Views.FirstRunWizardWindow"
+        Title="ScriptSuite — First-run setup"
+        Width="840" Height="720" MinWidth="700" MinHeight="560">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="28,22,28,20">
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="ScriptSuite" FontSize="26" FontWeight="Bold" />
+            <TextBlock Text="First-run setup — configure each script below. Every change saves automatically."
+                       FontSize="13" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Opacity="0.8" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,18,0,0">
+            <TextBlock x:Name="StepHeaderText" FontSize="16"
+                       FontWeight="SemiBold" />
+            <TextBlock x:Name="StepDescriptionText" FontSize="13"
+                       TextWrapping="Wrap" Margin="0,4,0,0" Opacity="0.8" />
+        </StackPanel>
+
+        <controls:SettingsForm x:Name="WizardFormControl" Grid.Row="2"
+                               Margin="0,10,0,0" />
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+            <Button Grid.Column="0" x:Name="RecommendedButton"
+                    Content="Use recommended defaults"
+                    Click="Recommended_Click" HorizontalAlignment="Left" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="BackButton" Content="Back" Click="Back_Click" />
+                <Button x:Name="NextButton" Content="Next" Click="Next_Click"
+                        IsDefault="True" />
+                <Button x:Name="SkipButton" Content="Skip" Click="Skip_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+
+</Window>
