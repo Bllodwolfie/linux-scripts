@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0); leave empty to use date-based tag'
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install packaging and script dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debhelper lintian jq libglib2.0-bin xdg-user-dirs
+
+      - name: Headless self-tests (stages 2-9)
+        run: |
+          dotnet build src/ScriptSuite/ScriptSuite.csproj -c Release --nologo
+          src/ScriptSuite/bin/Release/net8.0/ScriptSuite --self-test
+
+      - name: Build .deb from the clean checkout
+        run: dpkg-buildpackage -us -uc -d
+
+      - name: lintian (errors fail the job)
+        run: lintian ../scriptsuite_*_amd64.changes
+
+      - name: Stage .deb
+        run: |
+          mkdir -p dist
+          cp ../scriptsuite_*_amd64.deb dist/
+
+      - name: Create GitHub Release and attach .deb
+        if: github.event_name == 'push' || inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ScriptSuite ${{ inputs.tag || github.ref_name }}
+          body: |
+            Self-contained amd64 .deb (no .NET runtime required).
+            Install with `sudo dpkg -i scriptsuite_*_amd64.deb`, launch `ScriptSuite`.
+            Or clone and build from source (requires .NET 8 SDK).
+          files: dist/*.deb
+          generate_release_notes: true

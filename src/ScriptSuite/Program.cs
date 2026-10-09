@@ -52,6 +52,17 @@ sealed class Program
             return;
         }
 
+        // Headless self-tests (CI + `ScriptSuite --self-test`): the same
+        // stages 2–9 the dashboard button runs, printed to stdout. Optional
+        // second argument limits stages, e.g. `--self-test 8,9`.
+        // Exit 0 only if every executed stage ends SELF-TEST PASS.
+        if (args.Length > 0 && args[0] == "--self-test")
+        {
+            string? filter = args.Length > 1 && !args[1].StartsWith("--") ? args[1] : null;
+            Environment.Exit(RunSelfTests(filter));
+            return;
+        }
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
@@ -162,4 +173,45 @@ sealed class Program
 #endif
             .WithInterFont()
             .LogToTrace();
+
+    /// <summary>Headless runner for the in-app self-test stages. Prints the
+    /// same "== Stage N ==" sections the dashboard button shows.</summary>
+    private static int RunSelfTests(string? filter)
+    {
+        var wanted = filter?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        bool Want(string n) => wanted is null || wanted.Contains(n);
+        var stages = new (string N, string Title, Func<List<string>> Run)[]
+        {
+            ("2", "Stage 2: TempCleanup", Stage2SelfTest.Run),
+            ("3", "Stage 3: EmptyTrash", Stage3SelfTest.Run),
+            ("4", "Stage 4 (headless): ClearJournal + elevation", Stage4SelfTest.Run),
+            ("5", "Stage 5: Downloads/Screenshots/EmptyFolder", Stage5SelfTest.Run),
+            ("6", "Stage 6: SoftwareInventory/SystemHealthReport", Stage6SelfTest.Run),
+            ("7a", "Stage 7a: systemd scheduling", Stage7aSelfTest.Run),
+            ("7b", "Stage 7b: dashboard", Stage7bSelfTest.Run),
+            ("8", "Stage 8: run/history/run-all/hide", Stage8SelfTest.Run),
+            ("9", "Stage 9: settings/wizard", Stage9SelfTest.Run),
+        };
+        bool ok = true;
+        foreach (var (n, title, run) in stages)
+        {
+            if (!Want(n)) continue;
+            Console.WriteLine("== " + title + " ==");
+            List<string> lines;
+            try
+            {
+                lines = run();
+            }
+            catch (Exception ex)
+            {
+                lines = new List<string> { "SELF-TEST CRASHED: " + ex.Message };
+            }
+            foreach (var line in lines)
+                Console.WriteLine(line);
+            Console.WriteLine("");
+            if (!lines.Any(l => l.Trim() == "SELF-TEST PASS"))
+                ok = false;
+        }
+        return ok ? 0 : 1;
+    }
 }
