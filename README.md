@@ -1,207 +1,130 @@
 # linux-scripts
 
-Linux (KDE Neon) counterpart of [windows-scripts](https://github.com/Bllodwolfie/windows-scripts) — confirmed scope items #1 (per-script Linux mapping) and #2 (Avalonia architecture) from the scoping report.
+![License](https://img.shields.io/github/license/Bllodwolfie/linux-scripts)
+[![Catppuccin](https://img.shields.io/badge/catppuccin-Mocha%20%26%20Latte-DDB6F2?style=flat)](https://github.com/catppuccin/catppuccin)
 
-* **GUI:** Avalonia (C# / .NET), `src/ScriptSuite` (`net8.0` for Stage 1; retarget `net10.0` when the SDK lands — never `net*-desktop`)
-* **Scripts:** idiomatic Bash rewrites in `scripts/` (Stage 2+)
-* **Scope:** 8 scripts — `RestorePoint` dropped; `EmptyRecycleBin` → `EmptyTrash`, `ClearEventLogs` → `ClearJournal`
+A Linux maintenance suite — an Avalonia dashboard (`ScriptSuite`) over eight self-contained Bash scripts for cleanup, system tasks, and diagnostics. For most users it's a normal desktop app (install the `.deb`, launch); for developers the same scripts run directly via Bash and the app builds from source. Linux counterpart of [windows-scripts](https://github.com/Bllodwolfie/windows-scripts) (scope items #1 per-script Linux mapping and #2 Avalonia architecture).
 
-## Stage 1 (this commit) — scaffold only
+## Preview
 
-Proves the pipeline boots before any script execution:
+![ScriptSuite dashboard](assets/dashboard.png)
 
-* Avalonia MVVM app boots on KDE Neon (Wayland)
-* XDG paths (`AppPaths`: `~/.config/scriptsuite`, `~/.local/share/scriptsuite`, `$XDG_RUNTIME_DIR`)
-* `ManifestCatalog` loads shipped `Manifests/*.json` (1 manifest: TempCleanup)
-* `EnsureConfigsSeeded` copies `DefaultConfigs/` → `~/.config/scriptsuite/configs/`
-* `RunHistoryStore` initializes `history.db` (RunHistory + ScheduledRuns, WAL)
-* `ThemeStore` reads `theme.json` (Dark default); stub Mocha/Latte tokens in `Themes/`
-* Ported verbatim: `Models/*`, `ScriptConfigService`, `RunHistoryStore`, `ThemeStore`
+*ScriptSuite dashboard in Mocha dark — one tile per script with Run, Schedule, Settings, Hide and Run All selection. Run All, History and Scheduled history live in the header.*
 
-## Build
+> Screenshots are supplied separately — see `assets/README.md`.
+
+## Install — for most users (no SDK needed)
+
+**Latest Release:** [`v1.0.0` — `ScriptSuite v1.0.0`](https://github.com/Bllodwolfie/linux-scripts/releases/tag/v1.0.0)
+
+1. Download `scriptsuite_1.0.0_amd64.deb` from the release.
+2. Install it: `sudo dpkg -i scriptsuite_1.0.0_amd64.deb` (pulls in `pkexec`, `polkitd`, `jq`, `xdg-user-dirs`, `systemd`, `libglib2.0-bin` if missing).
+3. Launch `ScriptSuite` from the app menu. First launch shows the first-run wizard (per-script settings, skippable).
+
+Self-contained single-file publish (`/usr/lib/scriptsuite/ScriptSuite`) — no .NET runtime to install. The polkit action (`org.scriptsuite.run-elevated`) ships in the package, so admin scripts prompt graphically with no extra setup. To remove: `sudo apt remove scriptsuite` (keeps `~/.config/scriptsuite` data — configs, history, schedules).
+
+*Requires Ubuntu 24.04+ / Debian 12+ (x64) or derivatives. Wayland and X11 both work.*
+
+## Build from source — for developers
+
+**Prerequisite:** [.NET 8 SDK](https://dotnet.microsoft.com/download) (`8.0.x`, `dotnet --version` should print `8.0.400+`). The app builds `src/ScriptSuite/ScriptSuite.csproj:8` (`net8.0`; never `net*-desktop`).
 
 ```bash
+git clone https://github.com/Bllodwolfie/linux-scripts.git
+cd linux-scripts
+
 dotnet build src/ScriptSuite -c Release -r linux-x64
-dotnet run --project src/ScriptSuite
+dotnet run --project src/ScriptSuite -c Release
+
+# .deb from a clean tree (see .github/workflows for the CI form)
+dpkg-buildpackage -us -uc
 ```
 
-Requires .NET 8 SDK. Elevation (Stage 4) and scheduling (Stage 7a) are in;
-the `.deb` ships as of Stage 7b (see below).
+`dotnet publish -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:InvariantGlobalization=true` (see `debian/rules`) produces the single binary the `.deb` ships (`**/bin/`, `**/obj/` are gitignored).
 
-## Install (.deb)
+**Run scripts directly (no dashboard):**
 
 ```bash
-dpkg-buildpackage -us -uc -b -d   # -d: build-essential meta-package not installed; make/gcc are present
-sudo dpkg -i ../scriptsuite_0.1.0_amd64.deb
+./scripts/SystemHealthReport/SystemHealthReport.sh --config-path ~/.config/scriptsuite/configs/SystemHealthReport.json
+./scripts/TempCleanup/TempCleanup.sh --dry-run
 ```
 
-Self-contained single-file publish (`/usr/lib/scriptsuite/ScriptSuite`,
-~86 MB installed) — no .NET runtime dependency. `Depends: policykit-1`
-only. Installs the polkit action (`org.scriptsuite.run-elevated`, exec path
-`/usr/lib/scriptsuite/ScriptSuite --elevated-run`) and the `.desktop` entry.
-Hand-rolled `debian/rules` (no debhelper — only `dpkg-dev` + toolchain needed).
+## The 8 scripts
 
-## Stage 2 (this commit) — TempCleanup end-to-end
+Descriptions are verbatim from `src/ScriptSuite/Manifests/*.json` (source of truth for what ships; `RestorePoint` is dropped — no System Restore equivalent).
 
-First script through the full pipeline (mirrors how TempCleanup was the proof
-case on Windows):
+| Script | What it does | Requires admin |
+|--------|--------------|----------------|
+| [SystemHealthReport](scripts/SystemHealthReport/) | Generates a self-contained HTML report of system health (CPU, memory, disks, network, errors). | No |
+| [ClearJournal](scripts/ClearJournal/) | Exports then vacuums the systemd journal (CPU, boot and service logs). The export is a snapshot for inspection, not a restorable backup. | **Yes** |
+| [DownloadsCleanup](scripts/DownloadsCleanup/) | Sorts and cleans the Downloads folder: deletes old installer/archive files and moves others into matching category folders. Supports Advanced per-extension rules (Ignore/Delete/MoveTo) that override the simple `Extensions to delete` list. | No |
+| [EmptyFolderCleanup](scripts/EmptyFolderCleanup/) | Recursively removes empty folders under a chosen root folder. | No |
+| [EmptyTrash](scripts/EmptyTrash/) | Permanently empties the XDG Trash. Deleted files cannot be recovered. Supports “Only delete items older than N days” (0 = everything). | No |
+| [ScreenshotsCleanup](scripts/ScreenshotsCleanup/) | Deletes old screenshots from the Pictures/Screenshots folder. | No |
+| [SoftwareInventory](scripts/SoftwareInventory/) | Generates a text report of all installed software. | No |
+| [TempCleanup](scripts/TempCleanup/) | Deletes files from the temporary directory that are older than the cutoff. Permanent delete (not via Trash) — /tmp is tmpfs. | No |
 
-* `scripts/lib/common.sh` — shared helpers: `INFO:/WARN:/ERROR:/DRYRUN:` log
-  protocol, jq config readers (`cfg_str/cfg_int/cfg_list`), canonical paths,
-  dangerous-root guard. Requires `jq` (`sudo apt install jq`).
-* `scripts/TempCleanup/TempCleanup.sh` — idiomatic Bash: `find -mmin` age
-  filter, files-only, `IgnoreFolders` wins over age and `--include-only`,
-  **permanent `rm`** (never Trash — `/tmp` is tmpfs), corrupt config warns +
-  falls back, missing target warns + `0 deleted, 0 skipped`, dangerous roots
-  (`/`, `/home`, `$HOME`, `/etc`, …) refused with exit 1.
-* `BashScriptExecutor` — spawns `/bin/bash`, parses `DRYRUN:` JSON items,
-  Failed/Warning/Success precedence identical to Windows `ScriptExecutor`.
-* Scaffold UI gained a self-test button running dry-run → real run →
-  include-only → history insert against a scratch dir (never `/tmp`).
-* Verified: `SELF-TEST PASS` (9/9 checks) headless + GUI boot on Plasma.
+Defaults live in `src/ScriptSuite/DefaultConfigs/*.json` and copy to `~/.config/scriptsuite/configs/` on first run (`Services/AppPaths.cs` `EnsureConfigsSeeded`, never overwrites existing):
 
-## Stage 3 (this commit) — EmptyTrash + Trash contract
+- `ClearJournal` → `Scope: system`, `VacuumTime: 7d`, `BackupDir: $HOME/Documents/Script_Logs/JournalBackups`
+- `DownloadsCleanup` → `SourceDir: $HOME/Downloads`, `CutoffDays: 7`, `LogDir: $HOME/Documents/Script_Logs` (+ `DeleteExts` / `IgnorePatterns` / `Categories` / `AdvancedRules`)
+- `EmptyFolderCleanup` → `TargetFolder: $HOME/Downloads` (+ `IgnoreFolders`)
+- `EmptyTrash` → `MinAgeDays: 0`
+- `ScreenshotsCleanup` → `TargetFolder: $HOME/Pictures/Screenshots`, `CutoffDays: 7`
+- `SoftwareInventory` → `OutputFile: $HOME/Documents/Script_Logs/Software_Inventory.txt`
+- `SystemHealthReport` → `OutputDir: $HOME/Documents`, `OutputFile: System_Health_Report.html`
+- `TempCleanup` → `TargetFolder: /tmp`, `CutoffDays: 7` (+ `IgnoreFolders`)
 
-Second script through the pipeline (Windows EmptyRecycleBin counterpart):
+Each script supports dry-run preview where `supportsDryRun: true` in its manifest (6 of 8; `SoftwareInventory` and `SystemHealthReport` are reports, not previews).
 
-* `scripts/EmptyTrash/EmptyTrash.sh` — enumerates `info/*.trashinfo`
-  (`Path=` URL-decoded, `DeletionDate=` parsed), sizes `files/<name>`, emits
-  Delete/Skip dry-run items with ages, `MinAgeDays` filter (0 = everything,
-  negative clamps with warning, dateless items deleted only at 0 —
-  same rule as Windows), include-only subset, data-then-metadata pair
-  deletion with gone-verification.
-* **Correction to the scoping report:** `gio trash --empty` is a silent no-op
-  on this stack (GLib 2.80: exits 0, deletes nothing — proven by experiment).
-  All deletions therefore remove the `files/` + `info/` pair directly for
-  whole-trash AND filtered runs; `gio` remains the contract only for
-  trashing/listing/restoring. Two further platform findings: `gio trash`
-  refuses sources on system-internal mounts (`/tmp` tmpfs — test items live
-  under `~/.local/share`), and bash `read` with a tab delimiter drops empty
-  fields (tab is IFS whitespace) — items use unit-separator (`\037`)
-  delimiting so dateless entries can't shift into "20733 days old".
-* `Stage3SelfTest` — against the REAL home Trash: gio-trashes 3 test items,
-  backdates one `DeletionDate` 10 days, strips another's, proves dry-run
-  actions (Delete/Skip/Skip), filtered + include-only deletion, a full
-  MinAgeDays=0 clear with user items moved aside and restored byte-identical,
-  and history insert. 11/11 PASS, trash left exactly as found.
-* Verified: `SELF-TEST PASS` headless (twice, idempotent) + GUI boot.
+*Sample `System Health Report` output — see `assets/preview.png`.*
 
-## Stage 5 (this commit) — Downloads, Screenshots, EmptyFolder
+## Prerequisites
 
-Three file scripts through the pipeline (Windows counterparts faithful):
+- **For the `.deb`:** Ubuntu 24.04+ / Debian 12+ x64. No .NET runtime, no Bash version check (self-contained).
+- **For `scripts/` directly:** any Linux with Bash 5+, `jq`, `gio` (Trash support), `journalctl` (ClearJournal), `systemctl --user` (scheduling).
+- **For building:** .NET 8 SDK (`8.0.x`), `dpkg-dev` + `debhelper-compat` for the `.deb`, `lintian` for the lint check.
 
-* `scripts/DownloadsCleanup/` — non-recursive sort/clean: `DeleteExts` →
-  Trash, `Categories` ext→dest moves (`mkdir -p`, overwrite like
-  `Move-Item -Force`), unrecognized → Skip. Precedence:
-  IgnorePatterns (case-insensitive filename glob) > IncludeOnly >
-  AdvancedRules (Ignore|Delete|MoveTo, always wins; empty-destination MoveTo
-  is a validated Skip) > DeleteExts > Categories. Shared `CleanupLog.txt`
-  auditing, real-run-only logging, `X deleted, Y skipped` summary.
-* `scripts/ScreenshotsCleanup/` — non-recursive age deletes to Trash,
-  IgnorePatterns, missing folder logs SKIPPED + exits cleanly, log lines
-  carry the self-identifying `ScreenshotsCleanup …` prefix (shared log).
-* `scripts/EmptyFolderCleanup/` — multi-pass recursive empty-dir removal via
-  non-recursive `rmdir` (race-safe, Windows `$false` parity), permanent
-  delete (empty = no data), root never removed, hidden entries count,
-  IgnoreFolders (case-sensitive subtree) beats IncludeOnly, dry-run
-  simulation previews parents emptied by children, full-path log lines.
-* Deletes route through `gio trash` (proven headless, no session needed) —
-  with one platform rule the tests caught red-handed: **gio cannot trash
-  across filesystems** (`/tmp` tmpfs → Trash fails, surfaced as skip+WARN,
-  never silent loss). Fixtures live under `$HOME` for this reason.
-* `Stage5SelfTest` — 25 checks: exact dry-run action matrices (incl.
-  rule-beats-delete-list and pattern-beats-rule), real FS outcomes, Trash
-  landing via gio, log content, include-only narrowing, missing/corrupt
-  configs per script, history rows. `SELF-TEST PASS` (all suites 2–5 green
-  together), user Trash/Downloads/Pictures left byte-identical.
+## Scheduling — unattended runs via systemd user timers
 
-## Stage 6 (this commit) — SoftwareInventory, SystemHealthReport (all 8 scripts)
+Every non-admin script (7 of 8) can be scheduled from its tile **Schedule…** button. The dialog is `Every [N] [Days|Hours|Weeks] at [HH:mm]` — no cron. Example: `Every 1 Days at 09:00` creates the `scriptsuite-TempCleanup.timer` user unit.
 
-The two read-only reports (no dry-run contract — asserted via
-`supportsDryRun=false` instead):
+* **Admin scripts can't elevate on a timer:** user timers run as your user, so a scheduled `ClearJournal` run is recorded as `Failed` at execution — the dialog says so upfront. Run it manually (polkit prompt) instead. This replaces the Windows `S4U`/`HighestAvailable` split: on Linux there is no silent-elevation tier.
+* **Per-script risk opt-in:** first time you touch an admin script, check `I understand the risks` (stored in `~/.config/scriptsuite/risk-consents.json` per-script, persists after unscheduling).
+* **Scheduled History is separate:** header `Scheduled…` button opens `Scheduled History` (`Services/RunHistoryStore.cs` `ScheduledRuns` table, `INSERT` via headless `ScriptSuite --scheduled-run <id>`). Manual `History…` and scheduled history are never merged. `Skipped — app was busy` is a distinct outcome (not silently dropped, not queued) when a trigger fires while the dashboard holds the lock (`flock` on `~/.local/share/scriptsuite/scheduled.lock`).
+* **App remains closed between runs:** the timer launches `ScriptSuite --scheduled-run <id>` headlessly, it runs, inserts into `ScheduledRuns`, and exits — no tray/background process. Results only visible in the `Scheduled…` window (no notifications).
+* **Storage:** schedules in `~/.config/scriptsuite/schedules.json` (`Models/ScheduleEntry.cs`), `risk-consents.json`, and `history.db` `ScheduledRuns`. `Remove schedule` in the same dialog disables the timer and clears the entry (dashboard `◷` indicator disappears).
 
-* `scripts/SoftwareInventory/` — dpkg-query (installed only, sorted) + snap +
-  flatpak appendices; Name/Version/Arch/Source columns (Publisher/InstallDate
-  have no Linux equivalent, not emulated); B6 output validation (folder target
-  refused); `N packages: D dpkg, S snap, F flatpak` summary.
-* `scripts/SystemHealthReport/` — same single-file Catppuccin Mocha/Latte
-  shell (cards, sidebar, fade/observer JS, theme toggle, footer) with
-  config-driven palettes; collectors all Linux-native (`/proc`, `lscpu`,
-  `df`, `ip -j`, `ps`, per-boot `journalctl -p`, `apt` pending count,
-  `sensors`, DMI strings); updates show *pending* apt count (no last-check
-  COM equivalent — documented); mascots embedded only when the PNGs resolve.
-* `Stage6SelfTest` — 15 checks: real runs with content assertions (bash
-  listed, 10 section ids, hostname), missing/corrupt configs, output-is-dir
-  refusal, history rows. Default-path side effects (missing config writes the
-  real user locations) are snapshotted and swept. `SELF-TEST PASS`, all
-  suites 2–6 green together, user state byte-identical.
+## Themes
 
-## Stage 7a (this commit) — systemd scheduling engine
+Dashboard header `Theme: Dark / Latte` toggles Catppuccin Mocha (dark, `#1E1E2E`) and Latte (light, `#EFF1F5`). The switch is runtime — no restart required — and persists to `~/.config/scriptsuite/theme.json` (default Dark, so existing installs are unaffected). All windows — dashboard, Settings, Run, History, Run All, Schedule, wizard — follow the selected palette via `DynamicResource` (`Themes/Tokens.axaml` / `Themes/Tokens.Latte.axaml`), and the Fluent variant pins to match.
 
-Unattended runs via user timers (no dashboard UI yet — that’s 7b):
+## Help
 
-* `SystemdScheduleService` — one tier only (no Interactive/S4U split):
-  writes `~/.config/systemd/user/scriptsuite-<id>.service/.timer`,
-  `ExecStart=<binary> --scheduled-run <id>`, `daemon-reload` +
-  `enable --now`, verified via `is-enabled`. Dialog-model mapping:
-  daily/weekly-at-time → `OnCalendar` (wall-clock exact); hourly and N>1
-  day/week intervals → `OnUnitActiveSec` + `Persistent` (interval measured
-  from enable — documented compromise vs Task Scheduler, `SummaryFor()`
-  words it honestly). Timeouts mirror Windows (5 s query, 20 s register,
-  kill-on-timeout). Elevated scripts scheduled as timers fail loudly at
-  execution (EUID guard → `Failed` row) — no silent privileged background
-  runs; the dashboard will warn at schedule time.
-* `Program --scheduled-run` — headless execute + `ScheduledRuns` insert
-  (never manual `RunHistory`); single-instance via raw-fd `flock`
-  (`LOCK_EX|LOCK_NB`, busy → `SkippedBusy` row, never queued). Raw fds are
-  load-bearing: .NET `FileStream` enforces `FileShare` with its own flock
-  on Unix, so opening the lock file the managed way throws *before* the
-  explicit lock ever runs (found empirically). Exit 0 on
-  Success/Warning/SkippedBusy, 1 on Failed/unknown id (failed units stay
-  visible in systemd).
-* `Stage7aSelfTest` — 14 checks: register/list/unregister against the live
-  user systemd, `ScheduleStore` round-trip, direct run (row + FS proof +
-  history separation), externally-held lock → `SkippedBusy` with target
-  untouched, a **genuine `OnActiveSec` timer firing** into the full
-  binary→script→history path, unknown-id exit 1. `SELF-TEST PASS`, all
-  suites 2–7a green together, no timers/scratch/residue left behind.
+Contextual `?` buttons appear in the dashboard header (overview), each script's Settings window (overview next to the script name + per-field `?` for `helpDetail`), the Run window (next to the script name), and the Schedule dialog (next to the title). Click to expand a themed panel — not a separate manual. The first-run wizard reuses `SettingsForm`, so per-field `?` appears there too. History windows intentionally have no extra help (Windows P2/P3 parity).
 
-## Stage 7b (this commit) — dashboard + package
+## Self-tests and regression suite
 
-The scaffold window is now a real dashboard (Run + Schedule + History scope;
-no settings editors — configs stay file-edited):
+- **In-app headless stages** (dashboard `Run self-tests`, or `ScriptSuite --self-test`): stages 2–7 cover scripts, elevation, scheduling and packaging; stages 8–9 cover the Run/History/Run-All/Settings/wizard ViewModels, validation, config round-trips and the wizard marker — all against scratch `HOME`/`XDG_*` and scratch DBs (`Services/Stage8SelfTest.cs`, `Services/Stage9SelfTest.cs`).
+- **Bash regression scripts** (`tests/`, ported from `windows-scripts` `tests/m12`): parameterized per-script scenarios over `mktemp -d` scratch dirs — `tests/run.sh` runs them all, no hardcoded paths, no `sudo`.
 
-* One card per script in `BuiltInOrder`: description, ADMIN badge (only
-  ClearJournal), Run + Schedule buttons, live `◷` schedule summary (honest
-  `SummaryFor` wording), last manual run, risk checkbox for admin scripts.
-  Run executes on a worker thread (blocking pkexec dialogs never sit on the
-  UI thread) and records into manual `RunHistory`; admin Run without consent
-  refuses with a status-line hint.
-* Schedule dialog ports Windows `ScheduleWindow`: Every [N] [Days|Hours|
-  Weeks] at [HH:mm], same validation (integer 1–365, parseable time, admin
-  needs risk opt-in), pre-fill + Remove. Save registers the timer *first*
-  and only then persists the store entry — a failed enable can never leave
-  a phantom schedule. Admin scripts carry an explicit warning: user timers
-  cannot elevate, so scheduled ClearJournal runs record Failed; manual runs
-  use pkexec.
-* Recent runs + Scheduled runs sections (separation enforced and tested).
-* `Stage7bSelfTest` — 24 checks, all headless against temp stores: card
-  model, 4 bad intervals + bad time + admin-without-consent rejected
-  without touching systemd, save/remove round-trip, pre-fill, a real
-  TempCleanup through the card Run path (FS proof + history row + refresh),
-  a real systemd round-trip through the dialog's *default* funcs, history
-  separation. `SELF-TEST PASS`, suites 2–7b green together.
-* GUI proven on Plasma: window present (`xwininfo`), zero exceptions.
-* `.deb` (see Install above): verified by extracting and running the
-  shipped layout with isolated XDG roots — real TempCleanup, exit 0,
-  `ScheduledRuns` row. `desktop-file-validate` clean.
+## Known limitations & notices
 
-## Layout (mirrors windows-scripts for reviewability)
+- **Unsigned, un-sandboxed:** the `.deb` is unsigned (no SecureBoot/MOK story yet) and the app runs unconfined — scripts act with your user's full rights (plus polkit for ClearJournal). Review `scripts/` before running.
+- **Intentional divergences from windows-scripts** (not bugs):
+  - `RestorePoint` dropped (no System Restore equivalent); `EmptyRecycleBin` → `EmptyTrash` (XDG Trash); `ClearEventLogs` → `ClearJournal` (journald export + vacuum).
+  - Run window has a real **Cancel** (Windows has none); window-close mid-run is refused (Windows left it open).
+  - History has a **filter** (Windows v2.0.0 has none).
+  - **Admin scripts excluded from Run All without consent** (Windows runs them with per-leg UAC).
+  - Run All preview has no per-item checkboxes (Windows parity — selection lives on the tile checkboxes).
+  - No crash-resume (`journal.json`/`ResumePrompt`) yet.
+  - Corrupt configs fall back to defaults but never self-heal via UI edits (Windows parity); scripts warn-and-default independently.
+  - Buttons keep Fluent styling (no custom button re-template yet); outcome badges keep their bound colors until the window is reopened after a theme switch.
+  - Scheduling is systemd user timers (no cron, no `S4U`); intervals over a day roll from save time.
+  - Both `Hide` and `Show` are guarded while a run is in flight (Windows guards only `Hide`).
+- **SQLite WAL sidecars:** run history lives at `~/.local/share/scriptsuite/history.db` (`journal_mode=WAL`, `busy_timeout=5000`). Beside it you will see `history.db-wal` / `history.db-shm` — normal for WAL; don't copy the `.db` alone while the app is running.
+- **Case sensitivity:** extension matching lowercases both sides (scripts + Advanced Rules UI agree); BAN pickers and path fields accept `/`-rooted paths, `~` and `$HOME`.
 
-```
-src/ScriptSuite/
-  Models/ Services/ ViewModels/ Views/
-  Manifests/ DefaultConfigs/ Themes/
-scripts/<id>/<id>.sh   # Stage 2+
-packaging/             # Stage 7 (.deb, polkit, .desktop)
-```
+## License
+
+MIT — see [LICENSE](LICENSE) (Copyright (c) 2026 Bllodwolfie). `debian/copyright` carries the same terms.
