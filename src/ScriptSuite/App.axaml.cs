@@ -18,6 +18,8 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // Persisted palette first so the first window never flashes.
+            ThemeManager.Initialize();
             var mainWindow = new MainWindow
             {
                 DataContext = new MainViewModel(),
