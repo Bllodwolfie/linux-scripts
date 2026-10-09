@@ -3,7 +3,9 @@
         xmlns:controls="using:ScriptSuite.Controls"
         x:Class="ScriptSuite.Views.SettingsWindow"
         Title="Settings"
-        Width="720" Height="640" MinWidth="560" MinHeight="400">
+        Width="720" Height="640" MinWidth="560" MinHeight="400"
+        Background="{DynamicResource Brush.Background.Primary}"
+        Foreground="{DynamicResource Brush.Foreground.Primary}">
 
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="24,18,24,20">
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
@@ -16,7 +18,8 @@
         <TextBlock x:Name="ScriptDescriptionText" Grid.Row="1"
                    TextWrapping="Wrap" Margin="0,4,0,0" Opacity="0.8" />
 
-        <Border x:Name="HelpPanel" Grid.Row="2" BorderBrush="Gray"
+        <Border x:Name="HelpPanel" Grid.Row="2"
+                BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
                 BorderThickness="1" CornerRadius="6" Padding="10"
                 Margin="0,8,0,0" IsVisible="False">
             <TextBlock x:Name="HelpTextBlock" FontSize="12"

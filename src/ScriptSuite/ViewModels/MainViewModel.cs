@@ -34,6 +34,40 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private bool _runAllEnabled;
 
+    /// <summary>Header theme toggle label/tooltip (ThemeManager is the source
+    /// of truth; refreshed on toggle and at construction).</summary>
+    [ObservableProperty] private string _themeLabel = "Theme: Dark";
+    [ObservableProperty] private string _themeTip = "Switch to Latte theme";
+
+    /// <summary>Dashboard overview panel (the Windows ? panel exists but its
+    /// text is never set — here it carries a real overview).</summary>
+    [ObservableProperty] private bool _dashboardHelpVisible;
+
+    public string DashboardHelpText =>
+        "Each tile is one script: Run opens the run window (dry-run preview with checkboxes, "
+        + "live output, Cancel, outcome banner), Settings… edits its config file, Schedule… sets "
+        + "a systemd user timer, Hide removes the tile (Show hidden brings it back dimmed). "
+        + "Run All runs every checked, visible script in one batch — EmptyTrash first, admin scripts "
+        + "only with risk consent. History… lists manual runs with their log files; Scheduled… lists "
+        + "timer runs. Every change saves immediately; use the ? panels for per-window details.";
+
+    [RelayCommand]
+    public void ToggleTheme()
+    {
+        ThemeManager.Apply(ThemeManager.CurrentTheme == "Dark" ? "Latte" : "Dark");
+        RefreshThemeLabel();
+    }
+
+    [RelayCommand]
+    public void ToggleDashboardHelp() => DashboardHelpVisible = !DashboardHelpVisible;
+
+    private void RefreshThemeLabel()
+    {
+        bool dark = ThemeManager.CurrentTheme == "Dark";
+        ThemeLabel = dark ? "Theme: Dark" : "Theme: Latte";
+        ThemeTip = dark ? "Switch to Latte theme" : "Switch to Dark theme";
+    }
+
     /// <summary>Global "Show hidden" toggle: reveals hidden tiles in place
     /// (dimmed, with a Show button). Pushed into every card.</summary>
     [ObservableProperty] private bool _showHidden;
@@ -98,6 +132,7 @@ public partial class MainViewModel : ViewModelBase
         }
         RefreshHistories();
         RefreshRunAllEnabled();
+        RefreshThemeLabel();
     }
 
     /// <summary>Run All target set: enabled + visible + (non-admin or

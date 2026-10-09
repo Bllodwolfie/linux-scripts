@@ -29,6 +29,17 @@ public partial class ScheduleDialogViewModel : ViewModelBase
     [ObservableProperty] private string _timeText = "09:00";
     [ObservableProperty] private bool _riskConsented;
     [ObservableProperty] private string _errorText = "";
+    [ObservableProperty] private bool _helpVisible;
+
+    /// <summary>Schedule overview (Windows parity: ScheduleHelpText, with
+    /// systemd/polkit wording instead of Task Scheduler/UAC).</summary>
+    public string HelpText =>
+        "Every N Days/Hours/Weeks at HH:mm — for example, every 2 Weeks at 09:00. "
+        + "This registers a systemd user timer that launches the app headlessly; no prompts "
+        + "appear at run time. Admin scripts cannot elevate on a timer, so their scheduled runs "
+        + "are recorded as Failed — run those manually (polkit prompt) instead. If the app is "
+        + "open when the trigger fires, that run is skipped and appears as SkippedBusy in "
+        + "Scheduled History.";
 
     /// <summary>Dialog result: true = saved/removed (caller refreshes),
     /// false = cancelled, null = stay open (validation/registration error).</summary>
@@ -71,6 +82,9 @@ public partial class ScheduleDialogViewModel : ViewModelBase
         : "";
 
     public string Unit => Units[UnitIndex < 0 || UnitIndex >= Units.Length ? 0 : UnitIndex];
+
+    [RelayCommand]
+    public void ToggleHelp() => HelpVisible = !HelpVisible;
 
     [RelayCommand]
     public void Save()

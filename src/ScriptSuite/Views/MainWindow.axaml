@@ -7,7 +7,9 @@
         x:Class="ScriptSuite.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="ScriptSuite">
+        Title="ScriptSuite"
+        Background="{DynamicResource Brush.Background.Primary}"
+        Foreground="{DynamicResource Brush.Foreground.Primary}">
 
     <Design.DataContext>
         <vm:MainViewModel />
@@ -20,6 +22,11 @@
                        VerticalAlignment="Center" />
             <StackPanel Orientation="Horizontal" Spacing="8"
                         HorizontalAlignment="Right" DockPanel.Dock="Right">
+                <Button Content="?" Command="{Binding ToggleDashboardHelpCommand}"
+                        Width="24" Height="24" ToolTip.Tip="Dashboard help" />
+                <Button Content="{Binding ThemeLabel}"
+                        Command="{Binding ToggleThemeCommand}"
+                        ToolTip.Tip="{Binding ThemeTip}" />
                 <CheckBox Content="Show hidden" IsChecked="{Binding ShowHidden}"
                           VerticalAlignment="Center" />
                 <Button Content="Run All" Command="{Binding OpenRunAllCommand}"
@@ -30,10 +37,20 @@
             </StackPanel>
         </DockPanel>
 
+        <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                BorderThickness="1" CornerRadius="6" Padding="10"
+                IsVisible="{Binding DashboardHelpVisible}">
+            <TextBlock Text="{Binding DashboardHelpText}" FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Brush.Foreground.Secondary}" />
+        </Border>
+
         <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ScriptCardViewModel">
-                    <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6"
+                    <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                            BorderThickness="1" CornerRadius="6"
+                            Background="{DynamicResource Brush.Background.Card}"
                             Padding="12" Margin="0,0,0,4"
                             IsVisible="{Binding IsVisible}"
                             Opacity="{Binding TileOpacity}">
@@ -42,18 +59,19 @@
                                 <TextBlock Text="{Binding DisplayName}"
                                            FontSize="15" FontWeight="Bold"
                                            VerticalAlignment="Center" />
-                                <Border Background="OrangeRed" CornerRadius="4"
-                                        Padding="6,1"
+                                <Border Background="{DynamicResource Brush.Status.Error}"
+                                        CornerRadius="4" Padding="6,1"
                                         IsVisible="{Binding RequiresAdmin}">
                                     <TextBlock Text="ADMIN" FontSize="11"
-                                               Foreground="White" />
+                                               Foreground="{DynamicResource Brush.Status.Error.Foreground}" />
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="{Binding Description}"
                                        TextWrapping="Wrap" Opacity="0.8" />
                             <TextBlock Text="{Binding ScheduleSummary}"
                                        IsVisible="{Binding HasSchedule}"
-                                       Foreground="DodgerBlue" FontSize="12" />
+                                       Foreground="{DynamicResource Brush.Accent.Primary}"
+                                       FontSize="12" />
                             <TextBlock Text="{Binding LastRunText, StringFormat='Last run: {0}'}"
                                        FontSize="12" Opacity="0.8" />
                             <TextBlock Text="{Binding RunStatus}" FontSize="12"
@@ -87,7 +105,10 @@
         </ItemsControl>
 
         <TextBlock Text="Recent runs" FontSize="15" FontWeight="Bold" />
-        <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
+        <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                BorderThickness="1" CornerRadius="6"
+                Background="{DynamicResource Brush.Background.Card}"
+                Padding="12">
             <ItemsControl ItemsSource="{Binding RecentRuns}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -99,7 +120,10 @@
         </Border>
 
         <TextBlock Text="Scheduled runs" FontSize="15" FontWeight="Bold" />
-        <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
+        <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                BorderThickness="1" CornerRadius="6"
+                Background="{DynamicResource Brush.Background.Card}"
+                Padding="12">
             <ItemsControl ItemsSource="{Binding RecentScheduled}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -113,7 +137,10 @@
         <Button Content="Run self-tests"
                 Command="{Binding RunSelfTestCommand}"
                 IsEnabled="{Binding !IsSelfTestRunning}" />
-        <Border BorderBrush="Gray" BorderThickness="1" Padding="12">
+        <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                BorderThickness="1" CornerRadius="6"
+                Background="{DynamicResource Brush.Background.Card}"
+                Padding="12">
             <TextBlock Text="{Binding Stage2Log}" FontFamily="monospace" />
         </Border>
     </StackPanel>

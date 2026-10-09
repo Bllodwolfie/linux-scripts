@@ -46,7 +46,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border BorderBrush="Gray" BorderThickness="1"
+                            <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}" BorderThickness="1"
                                     CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <TextBlock Text="{Binding}" VerticalAlignment="Center" />
@@ -76,7 +76,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border BorderBrush="Gray" BorderThickness="1"
+                            <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}" BorderThickness="1"
                                     CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <TextBlock Text="{Binding}" VerticalAlignment="Center" />
@@ -95,7 +95,7 @@
                     <Button Content="Add" Command="{Binding AddNewItemCommand}" />
                 </StackPanel>
                 <TextBlock Text="{Binding ListPathWarning}" FontSize="12"
-                           TextWrapping="Wrap" Foreground="DarkOrange"
+                           TextWrapping="Wrap" Foreground="{DynamicResource Brush.Status.Warning.Text}"
                            IsVisible="{Binding HasListPathWarning}" />
             </StackPanel>
         </DataTemplate>
@@ -112,7 +112,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border BorderBrush="Gray" BorderThickness="1"
+                            <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}" BorderThickness="1"
                                     CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <TextBlock Text="{Binding}" VerticalAlignment="Center"
@@ -144,7 +144,8 @@
 
         <!-- One field row: label/unit, control slot, help text, Saved note. -->
         <DataTemplate x:Key="FieldRowTemplate" x:DataType="vm:SettingsFieldViewModel">
-            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="8"
+            <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}" BorderThickness="1" CornerRadius="8"
+                    Background="{DynamicResource Brush.Background.Card}"
                     Padding="14,12" Margin="0,0,0,10">
                 <StackPanel Spacing="4">
                     <Grid ColumnDefinitions="Auto,*,Auto">
@@ -166,7 +167,8 @@
                     <TextBlock Text="{Binding HelpText}" FontSize="12"
                                TextWrapping="Wrap" Opacity="0.8" />
 
-                    <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6"
+                    <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                            BorderThickness="1" CornerRadius="6"
                             Padding="10"
                             IsVisible="{Binding IsHelpExpanded}">
                         <TextBlock Text="{Binding HelpDetail}" FontSize="12"
@@ -174,14 +176,14 @@
                     </Border>
 
                     <TextBlock Text="{Binding PathWarning}" FontSize="12"
-                               TextWrapping="Wrap" Foreground="DarkOrange"
+                               TextWrapping="Wrap" Foreground="{DynamicResource Brush.Status.Warning.Text}"
                                IsVisible="{Binding HasPathWarning}" />
 
                     <TextBlock Text="{Binding ValidationMessage}" FontSize="12"
-                               TextWrapping="Wrap" Foreground="Red"
+                               TextWrapping="Wrap" Foreground="{DynamicResource Brush.Status.Error}"
                                IsVisible="{Binding HasValidationError}" />
 
-                    <TextBlock Text="Saved" FontSize="11" Foreground="Green"
+                    <TextBlock Text="Saved" FontSize="11" Foreground="{DynamicResource Brush.Status.Success}"
                                IsVisible="{Binding IsSavedShown}" />
                 </StackPanel>
             </Border>

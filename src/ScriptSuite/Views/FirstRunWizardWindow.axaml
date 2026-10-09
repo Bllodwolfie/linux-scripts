@@ -3,7 +3,9 @@
         xmlns:controls="using:ScriptSuite.Controls"
         x:Class="ScriptSuite.Views.FirstRunWizardWindow"
         Title="ScriptSuite — First-run setup"
-        Width="840" Height="720" MinWidth="700" MinHeight="560">
+        Width="840" Height="720" MinWidth="700" MinHeight="560"
+        Background="{DynamicResource Brush.Background.Primary}"
+        Foreground="{DynamicResource Brush.Foreground.Primary}">
 
     <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="28,22,28,20">
         <StackPanel Grid.Row="0">

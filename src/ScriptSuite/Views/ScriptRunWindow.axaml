@@ -4,7 +4,9 @@
         x:Class="ScriptSuite.Views.ScriptRunWindow"
         x:DataType="vm:ScriptRunViewModel"
         Title="{Binding Title}"
-        Width="840" Height="620" MinWidth="600" MinHeight="420">
+        Width="840" Height="620" MinWidth="600" MinHeight="420"
+        Background="{DynamicResource Brush.Background.Primary}"
+        Foreground="{DynamicResource Brush.Foreground.Primary}">
 
     <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24,16,24,18">
         <!-- Row 0: header -->
@@ -14,10 +16,12 @@
                     <TextBlock Text="{Binding DisplayName}"
                                FontSize="20" FontWeight="SemiBold"
                                VerticalAlignment="Center" />
-                    <Border Background="OrangeRed" CornerRadius="4" Padding="6,1"
+                    <Border Background="{DynamicResource Brush.Status.Error}"
+                            CornerRadius="4" Padding="6,1"
                             IsVisible="{Binding ShowAdminBadge}"
                             VerticalAlignment="Center">
-                        <TextBlock Text="ADMIN" FontSize="11" Foreground="White" />
+                        <TextBlock Text="ADMIN" FontSize="11"
+                                   Foreground="{DynamicResource Brush.Status.Error.Foreground}" />
                     </Border>
                 </StackPanel>
                 <Button Content="?" Command="{Binding ToggleHelpCommand}"
@@ -26,9 +30,12 @@
             </DockPanel>
             <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.8" />
             <TextBlock Text="{Binding AdminNote}" IsVisible="{Binding ShowAdminBadge}"
-                       Foreground="DarkOrange" FontSize="13" />
-            <Border IsVisible="{Binding HelpVisible}" BorderBrush="Gray"
-                    BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,6,0,0">
+                       Foreground="{DynamicResource Brush.Status.Warning.Text}"
+                       FontSize="13" />
+            <Border IsVisible="{Binding HelpVisible}"
+                    BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                    BorderThickness="1" CornerRadius="6" Padding="10"
+                    Margin="0,6,0,0">
                 <TextBlock Text="{Binding HelpText}" TextWrapping="Wrap" FontSize="13" />
             </Border>
         </StackPanel>
@@ -41,8 +48,10 @@
                 <ListBox ItemsSource="{Binding Selections}" Height="200">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:RunSelectionItem">
-                            <Border BorderBrush="Gray" BorderThickness="1"
-                                    CornerRadius="6" Padding="8,6">
+                            <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                                    BorderThickness="1" CornerRadius="6"
+                                    Background="{DynamicResource Brush.Background.Card}"
+                                    Padding="8,6">
                                 <StackPanel Spacing="2">
                                     <CheckBox IsChecked="{Binding IsChecked}">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -64,7 +73,8 @@
                            Opacity="0.7" />
             </StackPanel>
             <TextBlock Text="{Binding StatusText}" FontSize="16"
-                       FontWeight="SemiBold" />
+                       FontWeight="SemiBold"
+                       Foreground="{Binding StatusText, Converter={StaticResource OutcomeToForeground}}" />
         </StackPanel>
 
         <!-- Row 2: live log -->

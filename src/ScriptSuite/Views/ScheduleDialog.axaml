@@ -8,10 +8,25 @@
         x:DataType="vm:ScheduleDialogViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="{Binding Title}"
-        Width="420" Height="380" CanResize="False"
-        WindowStartupLocation="CenterOwner">
+        Width="420" Height="440" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Brush.Background.Primary}"
+        Foreground="{DynamicResource Brush.Foreground.Primary}">
 
     <StackPanel Margin="20" Spacing="10">
+        <DockPanel>
+            <TextBlock Text="{Binding DisplayName}" FontSize="16"
+                       FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Content="?" Command="{Binding ToggleHelpCommand}"
+                    Width="24" Height="24" HorizontalAlignment="Right"
+                    DockPanel.Dock="Right" />
+        </DockPanel>
+        <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                BorderThickness="1" CornerRadius="6" Padding="10"
+                IsVisible="{Binding HelpVisible}">
+            <TextBlock Text="{Binding HelpText}" FontSize="12"
+                       TextWrapping="Wrap" />
+        </Border>
         <TextBlock Text="Every" FontWeight="Bold" />
         <StackPanel Orientation="Horizontal" Spacing="8">
             <TextBox Text="{Binding IntervalText}" Width="70" />
@@ -31,9 +46,12 @@
                   IsVisible="{Binding ShowRisk}" />
         <TextBlock Text="{Binding AdminTimerWarning}"
                    IsVisible="{Binding ShowRisk}"
-                   TextWrapping="Wrap" Foreground="OrangeRed" FontSize="12" />
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource Brush.Status.Warning.Text}"
+                   FontSize="12" />
 
-        <TextBlock Text="{Binding ErrorText}" Foreground="OrangeRed"
+        <TextBlock Text="{Binding ErrorText}"
+                   Foreground="{DynamicResource Brush.Status.Error}"
                    TextWrapping="Wrap" FontSize="12" />
 
         <StackPanel Orientation="Horizontal" Spacing="8">
