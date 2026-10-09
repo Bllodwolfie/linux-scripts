@@ -225,7 +225,9 @@ public partial class MainViewModel : ViewModelBase
                 all.AddRange(Stage5SelfTest.Run()); all.Add(""); all.Add("== Stage 6: SoftwareInventory/SystemHealthReport ==");
                 all.AddRange(Stage6SelfTest.Run()); all.Add(""); all.Add("== Stage 7a: systemd scheduling ==");
                 all.AddRange(Stage7aSelfTest.Run()); all.Add(""); all.Add("== Stage 7b: dashboard ==");
-                all.AddRange(Stage7bSelfTest.Run()); return all;
+                all.AddRange(Stage7bSelfTest.Run()); all.Add(""); all.Add("== Stage 8: run/history/run-all/hide ==");
+                all.AddRange(Stage8SelfTest.Run()); all.Add(""); all.Add("== Stage 9: settings/wizard ==");
+                all.AddRange(Stage9SelfTest.Run()); return all;
             });
             Stage2Log = string.Join("\n", lines);
         }
