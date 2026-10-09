@@ -86,7 +86,7 @@ public partial class MainViewModel : ViewModelBase
         {
             var card = new ScriptCardViewModel(manifest, _executor, _elevation,
                 _history, Schedules, _consents, _configPathFor(manifest.Id),
-                OpenScheduleAsync, OpenRunAsync, _dashboard);
+                OpenScheduleAsync, OpenRunAsync, _dashboard, OpenSettingsAsync);
             card.Ran += (_, _) => RefreshHistories();
             card.PropertyChanged += (_, e) =>
             {
@@ -137,6 +137,14 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Set by the view: opens the Run All preview window.
     /// Null in headless contexts.</summary>
     public Func<RunAllViewModel, Task>? ShowRunAll { get; set; }
+
+    /// <summary>Set by the view: opens the Settings window for a script.
+    /// Null in headless contexts (settings VMs are tested directly).</summary>
+    public Func<ScriptManifest, ScriptConfigService, Task>? ShowSettings { get; set; }
+
+    public Task OpenSettingsAsync(ScriptCardViewModel card) => ShowSettings is null
+        ? Task.CompletedTask
+        : ShowSettings(card.Manifest, new ScriptConfigService());
 
     /// <summary>Card Run entry: production opens the Run window (which runs
     /// and records history itself); headless runs inline.</summary>

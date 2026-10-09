@@ -1,0 +1,206 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScriptSuite.ViewModels"
+             xmlns:local="using:ScriptSuite.Controls"
+             x:Class="ScriptSuite.Controls.SettingsForm"
+             x:DataType="vm:SettingsFormViewModel">
+    <UserControl.Resources>
+        <!-- One control per manifest field type (schema-driven). -->
+        <DataTemplate x:Key="IntTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBox Text="{Binding IntText}" Width="90"
+                         LostFocus="Text_LostFocus" KeyDown="Text_KeyDown" />
+                <Button Content="▲" Command="{Binding StepUpCommand}"
+                        FontSize="9" />
+                <Button Content="▼" Command="{Binding StepDownCommand}"
+                        FontSize="9" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="StringTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <TextBox Text="{Binding TextValue}"
+                     LostFocus="Text_LostFocus" KeyDown="Text_KeyDown" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="PathTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0" Text="{Binding TextValue}"
+                         LostFocus="Text_LostFocus" KeyDown="Text_KeyDown" />
+                <Button Grid.Column="1" Content="Browse…" Click="Browse_Click"
+                        Margin="6,0,0,0" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="BoolTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <CheckBox IsChecked="{Binding BoolValue}" Content="Enabled"
+                      VerticalAlignment="Center" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="ListTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <StackPanel Spacing="4">
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="Gray" BorderThickness="1"
+                                    CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                    <Button Content="✕" FontSize="10"
+                                            Command="{Binding $parent[ItemsControl].DataContext.RemoveItemCommand}"
+                                            CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBox Text="{Binding NewItemText}" Width="220"
+                             Watermark="Add item" KeyDown="AddItem_KeyDown" />
+                    <Button Content="Add" Command="{Binding AddNewItemCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="PathListTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <StackPanel Spacing="4">
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="Gray" BorderThickness="1"
+                                    CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                    <Button Content="✕" FontSize="10"
+                                            Command="{Binding $parent[ItemsControl].DataContext.RemoveItemCommand}"
+                                            CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBox Text="{Binding NewItemText}" Width="220"
+                             Watermark="Add folder" KeyDown="AddItem_KeyDown" />
+                    <Button Content="Browse…" Click="BrowseNewItem_Click" />
+                    <Button Content="Add" Command="{Binding AddNewItemCommand}" />
+                </StackPanel>
+                <TextBlock Text="{Binding ListPathWarning}" FontSize="12"
+                           TextWrapping="Wrap" Foreground="DarkOrange"
+                           IsVisible="{Binding HasListPathWarning}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- patternList: like pathList chips but for glob patterns — no Browse
+             button (patterns are not paths) and no path-existence warning. -->
+        <DataTemplate x:Key="PatternListTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <StackPanel Spacing="4">
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="Gray" BorderThickness="1"
+                                    CornerRadius="4" Padding="6,2" Margin="0,0,4,4">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <TextBlock Text="{Binding}" VerticalAlignment="Center"
+                                               FontFamily="monospace" />
+                                    <Button Content="✕" FontSize="10"
+                                            Command="{Binding $parent[ItemsControl].DataContext.RemoveItemCommand}"
+                                            CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBox Text="{Binding NewItemText}" Width="220"
+                             Watermark="Add pattern" KeyDown="AddItem_KeyDown" />
+                    <Button Content="Add" Command="{Binding AddNewItemCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+
+        <local:FieldTemplateSelector x:Key="FieldTemplateSelector"
+            IntTemplate="{StaticResource IntTemplate}"
+            StringTemplate="{StaticResource StringTemplate}"
+            PathTemplate="{StaticResource PathTemplate}"
+            BoolTemplate="{StaticResource BoolTemplate}"
+            ListTemplate="{StaticResource ListTemplate}"
+            PathListTemplate="{StaticResource PathListTemplate}"
+            PatternListTemplate="{StaticResource PatternListTemplate}" />
+
+        <!-- One field row: label/unit, control slot, help text, Saved note. -->
+        <DataTemplate x:Key="FieldRowTemplate" x:DataType="vm:SettingsFieldViewModel">
+            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="8"
+                    Padding="14,12" Margin="0,0,0,10">
+                <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                   FontWeight="SemiBold" FontSize="14"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Unit}"
+                                   FontSize="12" Margin="8,0,0,0" Opacity="0.6"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding ShowUnit}" />
+                        <Button Grid.Column="2" Content="?"
+                                Command="{Binding ToggleHelpCommand}"
+                                IsVisible="{Binding HasHelpDetail}" />
+                    </Grid>
+
+                    <ContentControl Margin="0,8,0,0" Content="{Binding}"
+                                    ContentTemplate="{StaticResource FieldTemplateSelector}" />
+
+                    <TextBlock Text="{Binding HelpText}" FontSize="12"
+                               TextWrapping="Wrap" Opacity="0.8" />
+
+                    <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6"
+                            Padding="10"
+                            IsVisible="{Binding IsHelpExpanded}">
+                        <TextBlock Text="{Binding HelpDetail}" FontSize="12"
+                                   TextWrapping="Wrap" />
+                    </Border>
+
+                    <TextBlock Text="{Binding PathWarning}" FontSize="12"
+                               TextWrapping="Wrap" Foreground="DarkOrange"
+                               IsVisible="{Binding HasPathWarning}" />
+
+                    <TextBlock Text="{Binding ValidationMessage}" FontSize="12"
+                               TextWrapping="Wrap" Foreground="Red"
+                               IsVisible="{Binding HasValidationError}" />
+
+                    <TextBlock Text="Saved" FontSize="11" Foreground="Green"
+                               IsVisible="{Binding IsSavedShown}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <TextBlock Grid.Column="0"
+                       Text="Changes are saved automatically as you edit."
+                       Opacity="0.6" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Undo"
+                    Command="{Binding UndoCommand}"
+                    IsEnabled="{Binding CanUndo}" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Fields}"
+                          ItemTemplate="{StaticResource FieldRowTemplate}" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -1,0 +1,101 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ScriptSuite.ViewModels"
+             x:Class="ScriptSuite.Controls.DownloadsAdvancedRulesControl"
+             x:Name="Root"
+             x:DataType="vm:DownloadsAdvancedRulesViewModel">
+    <Expander Header="Advanced per-extension rules (overrides simple mode)"
+              IsExpanded="False" FontSize="12" Margin="0,10,0,0">
+        <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="8"
+                Padding="14,12" Margin="0,8,0,0">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Explicit rule for an extension overrides the simple &#34;Extensions to delete&#34; list and category moves. Extensions with no rule keep behaving as they do today. Ignore = never touch (even if old), Delete = to the XDG Trash, MoveTo = custom folder."
+                           FontSize="12" TextWrapping="Wrap" Opacity="0.8" />
+
+                <!-- Existing rules -->
+                <ItemsControl ItemsSource="{Binding Rules}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AdvancedRuleRowViewModel">
+                            <Border BorderBrush="Gray" BorderThickness="1"
+                                    CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                                <StackPanel Spacing="4">
+                                    <Grid ColumnDefinitions="120,150,*,Auto">
+                                        <!-- Extension -->
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding Extension}"
+                                                 LostFocus="Rule_LostFocus" />
+                                        <!-- Action -->
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedItem="{Binding Action}"
+                                                  Margin="6,0,0,0"
+                                                  SelectionChanged="Rule_Changed"
+                                                  ItemsSource="{Binding #Root.DataContext.ActionOptions}" />
+                                        <!-- Destination (only for MoveTo) -->
+                                        <Grid Grid.Column="2" Margin="6,0,0,0"
+                                              ColumnDefinitions="*,Auto">
+                                            <TextBox Grid.Column="0"
+                                                     Text="{Binding Destination}"
+                                                     LostFocus="Rule_LostFocus"
+                                                     IsVisible="{Binding IsMoveTo}" />
+                                            <Button Grid.Column="1" Content="Browse…"
+                                                    Click="BrowseDestination_Click"
+                                                    Margin="4,0,0,0"
+                                                    IsVisible="{Binding IsMoveTo}"
+                                                    Tag="{Binding}" />
+                                        </Grid>
+                                        <!-- Remove -->
+                                        <Button Grid.Column="3" Content="×"
+                                                Click="RemoveRule_Click" Tag="{Binding}"
+                                                Margin="6,0,0,0" FontSize="14" />
+                                    </Grid>
+                                    <TextBlock Text="{Binding OverlapWarning}"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Foreground="DarkOrange"
+                                               IsVisible="{Binding HasOverlapWarning}" />
+                                    <TextBlock Text="{Binding ValidationMessage}"
+                                               FontSize="11" TextWrapping="Wrap"
+                                               Foreground="Red"
+                                               IsVisible="{Binding HasValidationError}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Add new rule -->
+                <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="6"
+                        Padding="8" Margin="0,8,0,0">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Add new rule" FontWeight="SemiBold"
+                                   FontSize="12" />
+                        <Grid ColumnDefinitions="120,150,*,Auto">
+                            <TextBox Grid.Column="0" Text="{Binding NewExtension}" />
+                            <ComboBox Grid.Column="1" SelectedItem="{Binding NewAction}"
+                                      Margin="6,0,0,0"
+                                      ItemsSource="{Binding ActionOptions}" />
+                            <Grid Grid.Column="2" Margin="6,0,0,0"
+                                  ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0" Text="{Binding NewDestination}"
+                                         IsVisible="{Binding IsNewMoveTo}" />
+                                <Button Grid.Column="1" Content="Browse…"
+                                        Click="BrowseNewDestination_Click"
+                                        Margin="4,0,0,0"
+                                        IsVisible="{Binding IsNewMoveTo}" />
+                            </Grid>
+                            <Button Grid.Column="3" Content="Add"
+                                    Click="AddRule_Click" Margin="6,0,0,0"
+                                    IsEnabled="{Binding CanAdd}" />
+                        </Grid>
+                        <TextBlock Text="{Binding NewOverlapHint}" FontSize="11"
+                                   TextWrapping="Wrap" Foreground="DarkOrange"
+                                   IsVisible="{Binding HasNewOverlapHint}" />
+                        <TextBlock Text="{Binding NewValidationMessage}"
+                                   FontSize="11" TextWrapping="Wrap"
+                                   Foreground="Red"
+                                   IsVisible="{Binding HasNewValidationError}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Expander>
+</UserControl>

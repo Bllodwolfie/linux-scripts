@@ -19,6 +19,7 @@ public partial class ScriptCardViewModel : ViewModelBase
     private readonly string _configPath;
     private readonly Func<ScriptCardViewModel, Task> _openSchedule;
     private readonly Func<ScriptCardViewModel, Task> _openRun;
+    private readonly Func<ScriptCardViewModel, Task> _openSettings;
     private readonly DashboardStateStore? _dashboard;
 
     public ScriptManifest Manifest { get; }
@@ -73,7 +74,8 @@ public partial class ScriptCardViewModel : ViewModelBase
         string configPath,
         Func<ScriptCardViewModel, Task> openSchedule,
         Func<ScriptCardViewModel, Task>? openRun = null,
-        DashboardStateStore? dashboard = null)
+        DashboardStateStore? dashboard = null,
+        Func<ScriptCardViewModel, Task>? openSettings = null)
     {
         Manifest = manifest;
         _executor = executor;
@@ -84,6 +86,7 @@ public partial class ScriptCardViewModel : ViewModelBase
         _configPath = configPath;
         _openSchedule = openSchedule;
         _openRun = openRun ?? (card => card.RunInlineAsync());
+        _openSettings = openSettings ?? (_ => Task.CompletedTask);
         _dashboard = dashboard;
         _runAllIncluded = dashboard?.IsRunAllEnabled(manifest.Id) ?? true;
         _isHidden = dashboard?.IsHidden(manifest.Id) ?? false;
@@ -160,6 +163,9 @@ public partial class ScriptCardViewModel : ViewModelBase
 
     [RelayCommand]
     public Task OpenScheduleAsync() => _openSchedule(this);
+
+    [RelayCommand]
+    public Task OpenSettingsAsync() => _openSettings(this);
 
     [RelayCommand]
     public void Hide()

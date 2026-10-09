@@ -69,6 +69,8 @@
                                         IsEnabled="{Binding !IsRunning}" />
                                 <Button Content="Schedule…"
                                         Command="{Binding OpenScheduleCommand}" />
+                                <Button Content="Settings…"
+                                        Command="{Binding OpenSettingsCommand}" />
                                 <Button Content="Hide"
                                         Command="{Binding HideCommand}"
                                         IsVisible="{Binding !IsHidden}"

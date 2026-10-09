@@ -42,6 +42,11 @@ public partial class MainWindow : Window
                     var win = new RunAllPreviewWindow { DataContext = runAllVm };
                     await win.ShowDialog<bool?>(this);
                 };
+                vm.ShowSettings = async (manifest, config) =>
+                {
+                    var win = new SettingsWindow(manifest, config);
+                    await win.ShowDialog<bool?>(this);
+                };
             }
         };
     }
