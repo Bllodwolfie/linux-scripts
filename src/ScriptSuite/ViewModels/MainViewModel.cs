@@ -34,6 +34,16 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private bool _runAllEnabled;
 
+    /// <summary>Global "Show hidden" toggle: reveals hidden tiles in place
+    /// (dimmed, with a Show button). Pushed into every card.</summary>
+    [ObservableProperty] private bool _showHidden;
+
+    partial void OnShowHiddenChanged(bool value)
+    {
+        foreach (var card in Cards)
+            card.ShowHidden = value;
+    }
+
     /// <summary>Set by the view: opens the schedule dialog for a card and
     /// returns whether the schedule changed. Null in headless contexts.</summary>
     public Func<ScriptCardViewModel, Task<bool>>? ShowScheduleDialog { get; set; }
@@ -80,7 +90,8 @@ public partial class MainViewModel : ViewModelBase
             card.Ran += (_, _) => RefreshHistories();
             card.PropertyChanged += (_, e) =>
             {
-                if (e.PropertyName == nameof(ScriptCardViewModel.RunAllIncluded))
+                if (e.PropertyName == nameof(ScriptCardViewModel.RunAllIncluded)
+                    || e.PropertyName == nameof(ScriptCardViewModel.IsHidden))
                     RefreshRunAllEnabled();
             };
             Cards.Add(card);

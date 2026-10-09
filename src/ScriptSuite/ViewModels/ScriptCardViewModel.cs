@@ -39,6 +39,28 @@ public partial class ScriptCardViewModel : ViewModelBase
     partial void OnRunAllIncludedChanged(bool value) =>
         _dashboard?.SetRunAll(Manifest.Id, value);
 
+    /// <summary>Tile hidden flag. Persisted immediately to dashboard.json
+    /// (Windows parity); null store = headless default false.</summary>
+    [ObservableProperty] private bool _isHidden;
+
+    /// <summary>Pushed by the parent when the global "Show hidden" toggles.</summary>
+    [ObservableProperty] private bool _showHidden;
+
+    /// <summary>Hidden tiles vanish unless the dashboard shows hidden ones.</summary>
+    public bool IsVisible => !IsHidden || ShowHidden;
+
+    /// <summary>Hidden-but-shown tiles render dimmed (Windows parity: 0.55).</summary>
+    public double TileOpacity => IsHidden ? 0.55 : 1.0;
+
+    partial void OnIsHiddenChanged(bool value)
+    {
+        _dashboard?.SetHidden(Manifest.Id, value);
+        OnPropertyChanged(nameof(IsVisible));
+        OnPropertyChanged(nameof(TileOpacity));
+    }
+
+    partial void OnShowHiddenChanged(bool value) => OnPropertyChanged(nameof(IsVisible));
+
     public event EventHandler? Ran;
 
     public ScriptCardViewModel(
@@ -64,6 +86,7 @@ public partial class ScriptCardViewModel : ViewModelBase
         _openRun = openRun ?? (card => card.RunInlineAsync());
         _dashboard = dashboard;
         _runAllIncluded = dashboard?.IsRunAllEnabled(manifest.Id) ?? true;
+        _isHidden = dashboard?.IsHidden(manifest.Id) ?? false;
         RefreshSchedule();
     }
 
@@ -137,4 +160,18 @@ public partial class ScriptCardViewModel : ViewModelBase
 
     [RelayCommand]
     public Task OpenScheduleAsync() => _openSchedule(this);
+
+    [RelayCommand]
+    public void Hide()
+    {
+        if (IsRunning) return;
+        IsHidden = true;
+    }
+
+    [RelayCommand]
+    public void Show()
+    {
+        if (IsRunning) return;
+        IsHidden = false;
+    }
 }
