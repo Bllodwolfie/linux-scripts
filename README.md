@@ -119,7 +119,8 @@ Contextual `?` buttons appear in the dashboard header (overview), each script's 
   - Run All preview has no per-item checkboxes (Windows parity — selection lives on the tile checkboxes).
   - No crash-resume (`journal.json`/`ResumePrompt`) yet.
   - Corrupt configs fall back to defaults but never self-heal via UI edits (Windows parity); scripts warn-and-default independently.
-  - Buttons keep Fluent styling (no custom button re-template yet); outcome badges keep their bound colors until the window is reopened after a theme switch.
+  - Buttons keep Fluent styling (no custom button re-template yet).
+  - Dashboard shows **Recent runs** / **Scheduled runs** strips (Windows keeps recents in the History windows only).
   - Scheduling is systemd user timers (no cron, no `S4U`); intervals over a day roll from save time.
   - Both `Hide` and `Show` are guarded while a run is in flight (Windows guards only `Hide`).
 - **SQLite WAL sidecars:** run history lives at `~/.local/share/scriptsuite/history.db` (`journal_mode=WAL`, `busy_timeout=5000`). Beside it you will see `history.db-wal` / `history.db-shm` — normal for WAL; don't copy the `.db` alone while the app is running.
