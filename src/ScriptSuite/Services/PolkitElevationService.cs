@@ -59,9 +59,10 @@ public sealed class PolkitElevationService
             };
         }
 
-        string resultPath = Path.Combine(AppPaths.RuntimeRoot, "scriptsuite_" + Guid.NewGuid().ToString("N") + ".json");
-        string liveLog = resultPath + ".live.log";
-        string includePath = resultPath + ".include.json";
+        var paths = ElevatedPaths.Build();
+        string resultPath = paths.ResultPath;
+        string liveLog = paths.LiveLogPath;
+        string includePath = paths.IncludePath;
         Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
         File.WriteAllText(includePath, JsonSerializer.Serialize(includeOnly is { Count: > 0 }
             ? includeOnly.ToList()
@@ -276,15 +277,17 @@ public sealed class PolkitElevationService
         string self = HelperPath;
         if (string.IsNullOrEmpty(self))
             throw new InvalidOperationException("Environment.ProcessPath is null.");
-        string fake = Path.Combine(AppPaths.RuntimeRoot, "scriptsuite_<result>.json");
+        // Real production paths (same builder RunElevated spawns with — never
+        // placeholders), so previews and tests cannot drift from the spawn.
+        var preview = ElevatedPaths.Build();
         var argv = new List<string>
         {
             "pkexec", self,
             "--elevated-run", scriptId,
             "--config-path", configPath,
-            "--result-path", fake,
-            "--live-log", fake + ".live.log",
-            "--include-only", fake + ".include.json",
+            "--result-path", preview.ResultPath,
+            "--live-log", preview.LiveLogPath,
+            "--include-only", preview.IncludePath,
         };
         return argv;
     }

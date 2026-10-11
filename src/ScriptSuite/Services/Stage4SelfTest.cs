@@ -150,6 +150,40 @@ public static class Stage4SelfTest
                     $"unknown-id child rejected: exit={unkExit}{unkErr}");
             }
 
+            // --- 7f. production path builder: PreviewArgv uses the same
+            // --- ElevatedPaths.Build the parent spawns with (no placeholders),
+            // --- so previews and tests cannot drift from pkexec argv. ---
+            {
+                var argv = gated.PreviewArgv("ClearJournal", userCfg).ToList();
+                string res = argv[argv.IndexOf("--result-path") + 1];
+                string live = argv[argv.IndexOf("--live-log") + 1];
+                string inc = argv[argv.IndexOf("--include-only") + 1];
+                bool shapeOk = argv[0] == "pkexec"
+                    && Path.GetDirectoryName(res) == AppPaths.RuntimeRoot
+                    && System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(res), @"^scriptsuite_[0-9a-f]{32}\.json$")
+                    && live == res + ".live.log" && inc == res + ".include.json";
+                Check(shapeOk, "preview argv uses production GUID paths under RuntimeRoot");
+                var p2 = ElevatedPaths.Build();
+                Check(p2.ResultPath != res && Path.GetDirectoryName(p2.ResultPath) == AppPaths.RuntimeRoot,
+                    "path builder mints a fresh GUID per build");
+            }
+
+            // --- 7g. component compare truth table (21:04 class): the dir
+            // --- itself matches, true children match, sibling prefixes don't.
+            {
+                bool tableOk =
+                    ElevatedArgValidator.IsSameOrBeneath("/run/user/1000", "/run/user/1000")
+                    && ElevatedArgValidator.IsSameOrBeneath("/run/user/1000/", "/run/user/1000")
+                    && ElevatedArgValidator.IsSameOrBeneath("/run/user/1000/sub", "/run/user/1000")
+                    && ElevatedArgValidator.IsSameOrBeneath("/tmp", "/tmp/")
+                    && !ElevatedArgValidator.IsSameOrBeneath("/run/user/1000x", "/run/user/1000")
+                    && !ElevatedArgValidator.IsSameOrBeneath("/run/user/10000", "/run/user/1000")
+                    && !ElevatedArgValidator.IsSameOrBeneath("/run/user/100", "/run/user/1000")
+                    && !ElevatedArgValidator.IsSameOrBeneath("/etc", "/run/user/1000")
+                    && !ElevatedArgValidator.IsSameOrBeneath("/", "/run/user/1000");
+                Check(tableOk, "IsSameOrBeneath truth table (self/child true, sibling prefixes false)");
+            }
+
             // --- 7d. garbage include-only aborts (never widens), exit 2. ---
             {
                 string badInclude = Path.Combine(cfgDir, "child-bad.include.json");

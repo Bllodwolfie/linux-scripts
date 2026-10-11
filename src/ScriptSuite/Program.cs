@@ -42,6 +42,24 @@ sealed class Program
             return;
         }
 
+        // Print-only preview of the exact argv RunElevated would spawn
+        // (production path builder, no files, no spawn): keeps tests and the
+        // validator pinned to what pkexec really receives.
+        if (args.Length > 1 && args[0] == "--preview-elevated")
+        {
+            Environment.Exit(PreviewElevated(args));
+            return;
+        }
+
+        // Print-only validation of --elevated-run argv (same shape, no run):
+        // runs ElevatedArgValidator and prints ACCEPT, exit 0/2. No side
+        // effects — the include file is only read, result paths only checked.
+        if (args.Length > 0 && args[0] == "--validate-elevated")
+        {
+            Environment.Exit(ValidateElevated(args));
+            return;
+        }
+
         // Headless scheduled run (launched by a systemd user timer):
         // run one script via its saved config and record into ScheduledRuns.
         // A held flock means the dashboard (or another trigger) is mid-run:
@@ -64,6 +82,72 @@ sealed class Program
         }
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
+
+    /// <summary>Print-only: the exact argv RunElevated would spawn for this
+    /// script (production ElevatedPaths builder, no files, no spawn).</summary>
+    private static int PreviewElevated(string[] args)
+    {
+        string scriptId = args[1];
+        string? configPath = null;
+        for (int i = 2; i < args.Length; i++)
+            if (args[i] == "--config-path" && i + 1 < args.Length) { configPath = args[i + 1]; i++; }
+        var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
+        var consents = new RiskConsentStore(AppPaths.RiskConsentsPath);
+        var elevation = new PolkitElevationService(catalog, consents);
+        try
+        {
+            foreach (var a in elevation.PreviewArgv(scriptId, configPath ?? AppPaths.ConfigPathFor(scriptId)))
+                Console.WriteLine(a);
+            return 0;
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine("Preview refused: " + ex.Message);
+            return 2;
+        }
+    }
+
+    /// <summary>Print-only: run ElevatedArgValidator over --elevated-run
+    /// shaped argv and print ACCEPT. Exit 0 accepted, 2 refused.</summary>
+    private static int ValidateElevated(string[] args)
+    {
+        string? scriptId = null, configPath = null, resultPath = null;
+        string? liveLogPath = null, includeOnlyPath = null;
+        for (int i = 1; i < args.Length; i++)
+        {
+            string? next = i + 1 < args.Length ? args[i + 1] : null;
+            switch (args[i])
+            {
+                case "--config-path" when next is not null: configPath = next; i++; break;
+                case "--result-path" when next is not null: resultPath = next; i++; break;
+                case "--live-log" when next is not null: liveLogPath = next; i++; break;
+                case "--include-only" when next is not null: includeOnlyPath = next; i++; break;
+                default:
+                    if (scriptId is null && !args[i].StartsWith("--"))
+                        scriptId = args[i];
+                    break;
+            }
+        }
+        if (scriptId is null || configPath is null || resultPath is null)
+        {
+            Console.Error.WriteLine("Usage: ScriptSuite --validate-elevated <id> --config-path P --result-path P [--live-log P] [--include-only P]");
+            return 2;
+        }
+        var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
+        try
+        {
+            ElevatedArgValidator.Validate(scriptId, configPath, resultPath,
+                liveLogPath, includeOnlyPath, catalog,
+                ElevatedArgValidator.TryGetPrivilegedCaller());
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine("Validate refused: " + ex.Message);
+            return 2;
+        }
+        Console.WriteLine("ACCEPT");
+        return 0;
     }
 
     private static int RunElevatedChild(string[] args)
