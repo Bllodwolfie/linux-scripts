@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ScriptSuite.Models;
 
 namespace ScriptSuite.Services;
@@ -39,8 +40,47 @@ public static class Stage7aSelfTest
                 return lines;
             }
 
+            // --- 0. regression (CI shape): fresh root with NO scriptsuite dir.
+            // Missing config file/dir must load defaults, and the config dir
+            // must be creatable on demand — never DirectoryNotFound. Env is
+            // restored in finally; nothing here touches the real session.
+            string? origCfg0 = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+            string? origData0 = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+            string? origHome0 = Environment.GetEnvironmentVariable("HOME");
+            string emptyRoot = Path.Combine(Path.GetTempPath(),
+                "scriptsuite_stage7a_emptyroot_" + Guid.NewGuid().ToString("N")[..8]);
+            try
+            {
+                Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", Path.Combine(emptyRoot, "config"));
+                Environment.SetEnvironmentVariable("XDG_DATA_HOME", Path.Combine(emptyRoot, "data"));
+                Environment.SetEnvironmentVariable("HOME", Path.Combine(emptyRoot, "home"));
+                // NOTE: deliberately creating nothing — that is the point.
+                var freshSvc = new ScriptConfigService();
+                Check(freshSvc.Load("TempCleanup").Count == 0,
+                    "7a fresh root: missing config dir loads defaults");
+                string freshPath = AppPaths.ConfigPathFor("TempCleanup");
+                Directory.CreateDirectory(Path.GetDirectoryName(freshPath)!);
+                File.WriteAllText(freshPath, "{\"CutoffDays\": 7}");
+                Check(new ScriptConfigService().Load("TempCleanup")["CutoffDays"]?.ToString() == "7",
+                    "7a fresh root: config dir creatable + readable on demand");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", origCfg0);
+                Environment.SetEnvironmentVariable("XDG_DATA_HOME", origData0);
+                Environment.SetEnvironmentVariable("HOME", origHome0);
+                try { if (Directory.Exists(emptyRoot)) Directory.Delete(emptyRoot, recursive: true); } catch { }
+            }
+
+            bool sysd = SystemdScheduleService.IsUserManagerReachable();
+            string sysdWhy = "systemctl --user is unreachable (no user manager in this session)";
+
             // --- 1-3. register/list/unregister (skip if the user already has one) ---
-            if (SystemdScheduleService.TaskExists("TempCleanup"))
+            if (!sysd)
+            {
+                lines.Add($"SKIP register/unregister round-trip ({sysdWhy})");
+            }
+            else if (SystemdScheduleService.TaskExists("TempCleanup"))
             {
                 lines.Add("SKIP register/unregister (user already has a TempCleanup timer)");
             }
@@ -86,6 +126,9 @@ public static class Stage7aSelfTest
 
             // --- 6. direct --scheduled-run (test config, backup/restore user config) ---
             string cfgPath = AppPaths.ConfigPathFor("TempCleanup");
+            // The configs dir may not exist on a fresh machine (CI runners):
+            // create on demand instead of crashing (missing = defaults).
+            Directory.CreateDirectory(Path.GetDirectoryName(cfgPath)!);
             byte[]? backup = File.Exists(cfgPath) ? File.ReadAllBytes(cfgPath) : null;
             try
             {
@@ -151,7 +194,11 @@ public static class Stage7aSelfTest
             finally { RestoreBytes(cfgPath, backup); }
 
             // --- 8. genuine firing: hand-written OnActiveSec probe timer ---
-            try
+            if (!sysd)
+            {
+                lines.Add($"SKIP genuine timer firing probe ({sysdWhy})");
+            }
+            else try
             {
                 SeedScratch(scratch);
                 File.WriteAllText(cfgPath, JsonSerializer.Serialize(new

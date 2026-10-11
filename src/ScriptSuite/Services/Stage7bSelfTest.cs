@@ -158,6 +158,7 @@ public static class Stage7bSelfTest
             File.WriteAllText(newFile, "new");
             File.SetLastWriteTime(oldFile, DateTime.Now.AddDays(-10));
             string scratchConfig = Path.Combine(AppPaths.RuntimeRoot, $"scriptsuite_stage7b_cfg_{tag}.json");
+            Directory.CreateDirectory(AppPaths.RuntimeRoot);
             File.WriteAllText(scratchConfig, System.Text.Json.JsonSerializer.Serialize(
                 new Dictionary<string, object> { ["TargetFolder"] = scratch, ["CutoffDays"] = 7, ["IgnoreFolders"] = new string[0] }));
             try
@@ -182,7 +183,11 @@ public static class Stage7bSelfTest
             finally { TryDelete(scratchConfig); }
 
             // --- 6. real systemd round-trip through the dialog's DEFAULT funcs ---
-            if (SystemdScheduleService.TaskExists("TempCleanup"))
+            if (!SystemdScheduleService.IsUserManagerReachable())
+            {
+                lines.Add("SKIP dialog systemd round-trip (systemctl --user is unreachable: no user manager in this session)");
+            }
+            else if (SystemdScheduleService.TaskExists("TempCleanup"))
             {
                 lines.Add("SKIP dialog systemd round-trip (user already has a TempCleanup timer)");
             }

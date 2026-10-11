@@ -65,6 +65,30 @@ public sealed class SystemdScheduleService
         catch { return false; }
     }
 
+    /// <summary>True when a per-user systemd manager is reachable (unit
+    /// operations can run). Headless self-tests SKIP manager-touching
+    /// sections with an explicit reason when this is false (CI containers
+    /// and sessions without a user manager) — never a silent pass,
+    /// never a hard fail.</summary>
+    public static bool IsUserManagerReachable()
+    {
+        try
+        {
+            using var p = Process.Start(new ProcessStartInfo("systemctl",
+                "--user show-environment")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            if (p is null) return false;
+            if (!p.WaitForExit(QueryTimeoutMs)) { try { p.Kill(); } catch { } return false; }
+            return p.ExitCode == 0;
+        }
+        catch { return false; }
+    }
+
     public static (bool ok, string? error) Register(ScheduleEntry entry)
     {
         try
