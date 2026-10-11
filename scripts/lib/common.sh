@@ -68,13 +68,37 @@ cfg_list() { # file key
 }
 
 # Minimal env expansion for config paths (leading ~ plus $HOME/$USER in
-# either $VAR or ${VAR} form — no eval).
-expand_user_path() { # path
-    local p="$1"
-    [[ "$p" == "~"* ]] && p="$HOME${p:1}"
-    p="${p//\$HOME/$HOME}"; p="${p//\$\{HOME\}/$HOME}"
-    p="${p//\$USER/$USER}"; p="${p//\$\{USER\}/$USER}"
+# either $VAR or ${VAR} form — no eval). Optional home/user override the
+# process env (privileged tier expands from the pkexec caller's identity,
+# never root's).
+expand_user_path() { # path [home [user]]
+    local p="$1" _home="${2:-${HOME:-/root}}" _user="${3:-${USER:-}}"
+    [[ "$p" == "~"* ]] && p="$_home${p:1}"
+    p="${p//\$HOME/$_home}"; p="${p//\$\{HOME\}/$_home}"
+    p="${p//\$USER/$_user}"; p="${p//\$\{USER\}/$_user}"
     printf '%s' "$p"
+}
+
+# Home directory for a uid (getent primary, /etc/passwd fallback).
+# Fails closed (return 1) when unresolvable — callers must abort, not guess.
+caller_home_for_uid() { # uid -> home
+    local h
+    h=$(getent passwd "$1" 2>/dev/null | cut -d: -f6)
+    if [[ -z "$h" ]]; then
+        h=$(awk -F: -v u="$1" '$3==u {print $6; exit}' /etc/passwd 2>/dev/null)
+    fi
+    [[ -n "$h" ]] && printf '%s' "$h" || return 1
+}
+
+# Login name for a uid (same resolution order; empty string when unknown —
+# usernames only decorate paths, so callers fall back to the uid).
+caller_name_for_uid() { # uid -> name (may be empty)
+    local n
+    n=$(getent passwd "$1" 2>/dev/null | cut -d: -f1)
+    if [[ -z "$n" ]]; then
+        n=$(awk -F: -v u="$1" '$3==u {print $1; exit}' /etc/passwd 2>/dev/null)
+    fi
+    printf '%s' "$n"
 }
 
 # Human size: "4.2 KB" below 1 MiB, "12.3 MB" at/above (1-decimal,
@@ -184,14 +208,30 @@ is_absolute() { # path
 }
 
 # Refuse targets that would endanger the system. Returns 0 when safe.
-# System entries match by PREFIX (/etc/cron.d is as protected as /etc);
-# the user's own $HOME matches exact-only so $HOME/subdirs stay usable.
-guard_dangerous_root() { # canonical-target
-    local t="$1" home="${HOME:-/root}" d
+# Allow-list model: anything strictly under allowed-home (default: our own
+# $HOME) is the caller's own tree and passes — after canonicalization, so a
+# symlink under $HOME pointing into /etc still resolves outside and refuses.
+# The home root itself and / are exact-match refusals (never wipe $HOME).
+# Genuine system roots match by prefix; /run is deliberately NOT listed
+# (scripts legitimately use /run/user/$UID); other users' homes refuse via
+# the /home rule. Unlisted paths (/tmp, …) are allowed.
+guard_dangerous_root() { # canonical-target [allowed-home]
+    local t="$1" allowed="${2:-${HOME:-/root}}" d
+    [[ "$t" != "/" ]] && t="${t%/}"
+    [[ "$allowed" != "/" ]] && allowed="${allowed%/}"
+    [[ -z "$t" ]] && t="/"
+    [[ -z "$allowed" ]] && allowed="/"
+    # 1. filesystem root is never a target.
     [[ "$t" == "/" ]] && return 1
-    for d in /home /root /etc /usr /bin /sbin /var /boot /proc /sys /dev /run; do
+    # 2. your own home root is never a target.
+    [[ "$t" == "$allowed" ]] && return 1
+    # 3. anything strictly under your own home is yours (allow-list wins).
+    [[ "$t" == "$allowed"/* ]] && return 0
+    # 4. genuine system roots, by prefix.
+    for d in /root /etc /usr /bin /sbin /lib /lib32 /lib64 /libx32 /var /boot /proc /sys /dev /opt /srv; do
         [[ "$t" == "$d" || "$t" == "$d"/* ]] && return 1
     done
-    [[ "$t" == "$home" ]] && return 1
+    # 5. other users' homes ($allowed/* already returned above).
+    if [[ "$t" == /home || "$t" == /home/* ]]; then return 1; fi
     return 0
 }
