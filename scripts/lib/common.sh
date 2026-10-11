@@ -152,13 +152,17 @@ trash_warn() { # rc canon name logfile tag
     fi
 }
 
-# HTML-escape a string (& < > ") for report output.
+# HTML-escape a string (& < > " ') for report output.
+# NOTE (bash patsub_replacement): a bare & in the replacement expands to the
+# matched text, so the literal & must be written \& — "${s//</&lt;}" would
+# emit "<lt;", not "&lt;".
 html_escape() { # text
     local s="$1"
-    s="${s//&/&amp;}"
-    s="${s//</&lt;}"
-    s="${s//>/&gt;}"
-    s="${s//\"/&quot;}"
+    s="${s//&/\&amp;}"
+    s="${s//</\&lt;}"
+    s="${s//>/\&gt;}"
+    s="${s//\"/\&quot;}"
+    s="${s//\'/\&#39;}"
     printf '%s' "$s"
 }
 
