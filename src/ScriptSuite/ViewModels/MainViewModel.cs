@@ -46,7 +46,7 @@ public partial class MainViewModel : ViewModelBase
 
     public string DashboardHelpText =>
         "Each tile is one script: Run opens the run window (dry-run preview with checkboxes, "
-        + "live output, Cancel, outcome banner), Settings… edits its config file, Schedule… sets "
+        + "live output, Cancel, outcome banner), Settings edits its config file, Schedule sets "
         + "a systemd user timer, Hide removes the tile (Show hidden brings it back dimmed). "
         + "Run All runs every checked, visible script in one batch — EmptyTrash first, admin scripts "
         + "only with risk consent. History lists manual runs with their log files; Scheduled lists "
