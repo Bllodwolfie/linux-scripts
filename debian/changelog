@@ -1,3 +1,13 @@
+scriptsuite (1.0.2-dev) noble; urgency=low
+
+  * Stress-test fixes batch 1+2 (dev snapshot, not for release):
+    html_escape patsub fix, report palette/filename validation,
+    dev-install-policy mktemp, elevated-child argv confinement
+    (allow-list, consent, O_EXCL paths), BackupDir confinement,
+    setpriv-dropped journal export writer.
+
+ -- Bllodwolfie <Bllodwolfie@users.noreply.github.com>  Sun, 11 Oct 2026 20:30:00 +0200
+
 scriptsuite (1.0.1) noble; urgency=low
 
   * UI parity: live Mocha/Latte switch (remove/add token blocks, live
