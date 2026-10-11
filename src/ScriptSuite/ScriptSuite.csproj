@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ScriptSuite</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <!-- NOTE: net8.0 target is intentional for Stage 1: only the .NET 8 SDK is
          installed on the build machine. CI / dev machines with the .NET 10 SDK
          can retarget to net10.0 with no code changes. Do NOT use net8.0-desktop
