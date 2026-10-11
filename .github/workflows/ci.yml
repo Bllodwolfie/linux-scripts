@@ -31,18 +31,25 @@ jobs:
       - name: Headless self-tests (stages 2-9)
         run: src/ScriptSuite/bin/Release/net8.0/ScriptSuite --self-test
 
-      - name: Build .deb from the clean checkout
-        # -d: the .NET SDK comes from setup-dotnet, not the dotnet-sdk-8.0
-        # build-dep (same documented dispensation as local builds).
-        run: dpkg-buildpackage -us -uc -d
+      - name: Build .deb from a clean git-archive export
+        # The checkout above holds dotnet build outputs (bin/, obj/) that
+        # must never enter the package. Export HEAD to /tmp/ss-build (the
+        # same procedure used for local builds) and build there; outputs
+        # land in /tmp (the export's parent dir).
+        # -b: binary-only (no source package). -d: the .NET SDK comes from
+        # setup-dotnet, not the dotnet-sdk-8.0 build-dep.
+        run: |
+          rm -rf /tmp/ss-build && mkdir -p /tmp/ss-build
+          git archive HEAD | tar -x -C /tmp/ss-build
+          cd /tmp/ss-build && dpkg-buildpackage -us -uc -b -d
 
       - name: lintian (errors fail the job)
-        run: lintian ../scriptsuite_*_amd64.changes
+        run: lintian /tmp/scriptsuite_*_amd64.changes
 
       - name: Stage .deb
         run: |
           mkdir -p dist
-          cp ../scriptsuite_*_amd64.deb dist/
+          cp /tmp/scriptsuite_*_amd64.deb dist/
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4

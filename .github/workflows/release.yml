@@ -34,16 +34,22 @@ jobs:
           dotnet build src/ScriptSuite/ScriptSuite.csproj -c Release --nologo
           src/ScriptSuite/bin/Release/net8.0/ScriptSuite --self-test
 
-      - name: Build .deb from the clean checkout
-        run: dpkg-buildpackage -us -uc -d
+      - name: Build .deb from a clean git-archive export
+        # Same rationale as CI: the checkout holds dotnet build outputs
+        # that must never enter the package. Outputs land in /tmp.
+        # -b: binary-only. -d: SDK comes from setup-dotnet.
+        run: |
+          rm -rf /tmp/ss-build && mkdir -p /tmp/ss-build
+          git archive HEAD | tar -x -C /tmp/ss-build
+          cd /tmp/ss-build && dpkg-buildpackage -us -uc -b -d
 
       - name: lintian (errors fail the job)
-        run: lintian ../scriptsuite_*_amd64.changes
+        run: lintian /tmp/scriptsuite_*_amd64.changes
 
       - name: Stage .deb
         run: |
           mkdir -p dist
-          cp ../scriptsuite_*_amd64.deb dist/
+          cp /tmp/scriptsuite_*_amd64.deb dist/
 
       - name: Create GitHub Release and attach .deb
         if: github.event_name == 'push' || inputs.tag != ''
