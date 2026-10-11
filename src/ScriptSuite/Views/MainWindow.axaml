@@ -86,9 +86,16 @@
             </StackPanel>
         </Grid>
 
-        <ItemsControl ItemsSource="{Binding Cards}">
+        <ItemsControl ItemsSource="{Binding Categories}" Margin="0,6,0,0">
             <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:ScriptCardViewModel">
+                <DataTemplate x:DataType="vm:ScriptCategoryViewModel">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Brush.Accent.Primary}"
+                                   Margin="0,18,0,6" />
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ScriptCardViewModel">
                     <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
                             BorderThickness="1" CornerRadius="6"
                             Background="{DynamicResource Brush.Background.Card}"
@@ -141,6 +148,10 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>

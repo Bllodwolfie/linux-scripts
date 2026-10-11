@@ -25,6 +25,7 @@ public partial class MainViewModel : ViewModelBase
     public RiskConsentStore Consents { get; }
 
     public ObservableCollection<ScriptCardViewModel> Cards { get; } = new();
+    public ObservableCollection<ScriptCategoryViewModel> Categories { get; } = new();
     public ObservableCollection<string> RecentRuns { get; } = new();
     public ObservableCollection<string> RecentScheduled { get; } = new();
 
@@ -129,6 +130,17 @@ public partial class MainViewModel : ViewModelBase
                     RefreshRunAllEnabled();
             };
             Cards.Add(card);
+        }
+        foreach (var (category, scripts) in _catalog.GroupByCategory())
+        {
+            var cat = new ScriptCategoryViewModel(category);
+            foreach (var manifest in scripts)
+            {
+                var card = Cards.FirstOrDefault(c => c.Manifest.Id == manifest.Id);
+                if (card is not null)
+                    cat.Rows.Add(card);
+            }
+            Categories.Add(cat);
         }
         RefreshHistories();
         RefreshRunAllEnabled();
