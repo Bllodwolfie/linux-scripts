@@ -1,15 +1,9 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:conv="using:ScriptSuite.Converters"
              x:Class="ScriptSuite.App"
              xmlns:local="using:ScriptSuite"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
-
-    <Application.Resources>
-        <conv:OutcomeToBrushConverter x:Key="OutcomeToBrush" />
-        <conv:OutcomeToForegroundConverter x:Key="OutcomeToForeground" />
-    </Application.Resources>
 
     <Application.DataTemplates>
         <local:ViewLocator />
@@ -17,6 +11,37 @@
 
     <Application.Styles>
         <FluentTheme />
+        <!-- Both token sets are compiled in; ThemeManager keeps exactly the
+             active theme's block (remove/add), so switching needs no runtime
+             asset loading and every DynamicResource re-resolves live. -->
         <StyleInclude Source="avares://ScriptSuite/Themes/Tokens.axaml" />
+        <StyleInclude Source="avares://ScriptSuite/Themes/Tokens.Latte.axaml" />
+        <!-- Outcome badge fills: DynamicResource setters re-resolve live on
+             every theme switch (ThemeManager remove+add). Row VMs expose
+             Is*Badge bools bound via Classes.* below. -->
+        <Style Selector="Border.badge-success">
+            <Setter Property="Background" Value="{DynamicResource Brush.Status.Success}" />
+        </Style>
+        <Style Selector="Border.badge-warning">
+            <Setter Property="Background" Value="{DynamicResource Brush.Status.Warning}" />
+        </Style>
+        <Style Selector="Border.badge-error">
+            <Setter Property="Background" Value="{DynamicResource Brush.Status.Error}" />
+        </Style>
+        <Style Selector="Border.badge-info">
+            <Setter Property="Background" Value="{DynamicResource Brush.Status.Info}" />
+        </Style>
+        <Style Selector="TextBlock.badge-success">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Success.Foreground}" />
+        </Style>
+        <Style Selector="TextBlock.badge-warning">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Warning.Foreground}" />
+        </Style>
+        <Style Selector="TextBlock.badge-error">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Error.Foreground}" />
+        </Style>
+        <Style Selector="TextBlock.badge-info">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Info.Foreground}" />
+        </Style>
     </Application.Styles>
 </Application>

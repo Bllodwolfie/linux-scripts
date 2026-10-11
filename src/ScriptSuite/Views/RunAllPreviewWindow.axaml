@@ -42,7 +42,10 @@
                                     </StackPanel>
                                     <TextBlock Grid.Column="1" Text="{Binding StatusText}"
                                                FontWeight="SemiBold"
-                                               Foreground="{Binding StatusText, Converter={StaticResource OutcomeToForeground}}"
+                                               Classes.badge-success="{Binding IsSuccessBadge}"
+                                               Classes.badge-warning="{Binding IsWarningBadge}"
+                                               Classes.badge-error="{Binding IsErrorBadge}"
+                                               Classes.badge-info="{Binding IsInfoBadge}"
                                                VerticalAlignment="Center" />
                                 </Grid>
 

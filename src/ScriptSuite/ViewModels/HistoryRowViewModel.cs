@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ScriptSuite.Converters;
 
 namespace ScriptSuite.ViewModels;
 
@@ -25,6 +26,13 @@ public partial class HistoryRowViewModel : ViewModelBase
     public string? LogFileHint { get; init; }
 
     [ObservableProperty] private bool _isExpanded;
+
+    /// <summary>Badge style-class predicates (App.axaml Border/TextBlock
+    /// badge-* styles with DynamicResource setters follow the theme live).</summary>
+    public bool IsSuccessBadge => OutcomeBadge.IsSuccess(Outcome);
+    public bool IsWarningBadge => OutcomeBadge.IsWarning(Outcome);
+    public bool IsErrorBadge => OutcomeBadge.IsError(Outcome);
+    public bool IsInfoBadge => OutcomeBadge.IsInfo(Outcome);
 
     public string ExpandButtonText => IsExpanded ? "Hide detail" : "Show detail";
 

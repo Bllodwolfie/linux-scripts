@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ScriptSuite.Converters;
 using ScriptSuite.Models;
 using ScriptSuite.Services;
 
@@ -50,6 +51,21 @@ public partial class ScriptRunViewModel : ViewModelBase
 
     public ObservableCollection<RunSelectionItem> Selections { get; } = new();
     public ObservableCollection<string> LogLines { get; } = new();
+
+    /// <summary>Badge style-class predicates for the outcome line
+    /// (App.axaml badge-* styles follow the theme live).</summary>
+    public bool IsSuccessBadge => OutcomeBadge.IsSuccess(StatusText);
+    public bool IsWarningBadge => OutcomeBadge.IsWarning(StatusText);
+    public bool IsErrorBadge => OutcomeBadge.IsError(StatusText);
+    public bool IsInfoBadge => OutcomeBadge.IsInfo(StatusText);
+
+    partial void OnStatusTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsSuccessBadge));
+        OnPropertyChanged(nameof(IsWarningBadge));
+        OnPropertyChanged(nameof(IsErrorBadge));
+        OnPropertyChanged(nameof(IsInfoBadge));
+    }
 
     /// <summary>Close the hosting window. bool = unused; kept for parity
     /// with the dialog Close/Cancel/Remove pattern.</summary>

@@ -74,7 +74,10 @@
             </StackPanel>
             <TextBlock Text="{Binding StatusText}" FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="{Binding StatusText, Converter={StaticResource OutcomeToForeground}}" />
+                       Classes.badge-success="{Binding IsSuccessBadge}"
+                       Classes.badge-warning="{Binding IsWarningBadge}"
+                       Classes.badge-error="{Binding IsErrorBadge}"
+                       Classes.badge-info="{Binding IsInfoBadge}" />
         </StackPanel>
 
         <!-- Row 2: live log -->

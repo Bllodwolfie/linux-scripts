@@ -19,12 +19,15 @@
       <SolidColorBrush x:Key="Brush.Accent.Primary" Color="#FF1E66F5" />
       <SolidColorBrush x:Key="Brush.Accent.Primary.Foreground" Color="#FFEFF1F5" />
       <SolidColorBrush x:Key="Brush.Accent.Peach.Foreground" Color="#FFEFF1F5" />
-      <!-- Status -->
-      <SolidColorBrush x:Key="Brush.Status.Success" Color="#FF40A02B" />
+      <!-- Status: fills darkened vs Windows Latte on purpose — near-white badge
+       text must stay readable on light surfaces (Windows' own Latte badges
+       are near-invisible; not copied). Error/Info already contrast; Warning
+       text darkened for body copy on light cards. -->
+      <SolidColorBrush x:Key="Brush.Status.Success" Color="#FF2E7D32" />
       <SolidColorBrush x:Key="Brush.Status.Success.Foreground" Color="#FFEFF1F5" />
-      <SolidColorBrush x:Key="Brush.Status.Warning" Color="#FFDF8E1D" />
+      <SolidColorBrush x:Key="Brush.Status.Warning" Color="#FF9A6200" />
       <SolidColorBrush x:Key="Brush.Status.Warning.Foreground" Color="#FFEFF1F5" />
-      <SolidColorBrush x:Key="Brush.Status.Warning.Text" Color="#FFDF8E1D" />
+      <SolidColorBrush x:Key="Brush.Status.Warning.Text" Color="#FF8A5A00" />
       <SolidColorBrush x:Key="Brush.Status.Error" Color="#FFD20F39" />
       <SolidColorBrush x:Key="Brush.Status.Error.Foreground" Color="#FFEFF1F5" />
       <SolidColorBrush x:Key="Brush.Status.Info" Color="#FF1E66F5" />

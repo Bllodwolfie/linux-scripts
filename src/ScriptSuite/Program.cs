@@ -191,6 +191,7 @@ sealed class Program
             ("7b", "Stage 7b: dashboard", Stage7bSelfTest.Run),
             ("8", "Stage 8: run/history/run-all/hide", Stage8SelfTest.Run),
             ("9", "Stage 9: settings/wizard", Stage9SelfTest.Run),
+            ("10", "Stage 10: theme switching", Stage10SelfTest.Run),
         };
         bool ok = true;
         foreach (var (n, title, run) in stages)

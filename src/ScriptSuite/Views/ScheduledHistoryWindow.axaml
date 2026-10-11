@@ -49,12 +49,18 @@
                                 </StackPanel>
                                 <Border Grid.Column="2" CornerRadius="4"
                                         Padding="8,2"
-                                            Background="{Binding Outcome, Converter={StaticResource OutcomeToBrush}}"
+                                        Classes.badge-success="{Binding IsSuccessBadge}"
+                                        Classes.badge-warning="{Binding IsWarningBadge}"
+                                        Classes.badge-error="{Binding IsErrorBadge}"
+                                        Classes.badge-info="{Binding IsInfoBadge}"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Outcome}"
                                                FontSize="12" FontWeight="SemiBold"
-                                               Foreground="{Binding Outcome, Converter={StaticResource OutcomeToForeground}}" />
+                                               Classes.badge-success="{Binding IsSuccessBadge}"
+                                               Classes.badge-warning="{Binding IsWarningBadge}"
+                                               Classes.badge-error="{Binding IsErrorBadge}"
+                                               Classes.badge-info="{Binding IsInfoBadge}" />
                                 </Border>
                             </Grid>
                         </Border>

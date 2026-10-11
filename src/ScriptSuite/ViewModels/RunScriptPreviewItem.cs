@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using ScriptSuite.Converters;
 using ScriptSuite.Models;
 
 namespace ScriptSuite.ViewModels;
@@ -59,6 +60,12 @@ public partial class RunScriptPreviewItem : ViewModelBase
         _ => "Pending",
     };
 
+    /// <summary>Badge style-class predicates (App.axaml badge-* styles).</summary>
+    public bool IsSuccessBadge => OutcomeBadge.IsSuccess(StatusText);
+    public bool IsWarningBadge => OutcomeBadge.IsWarning(StatusText);
+    public bool IsErrorBadge => OutcomeBadge.IsError(StatusText);
+    public bool IsInfoBadge => OutcomeBadge.IsInfo(StatusText);
+
     public RunScriptPreviewItem(ScriptManifest manifest) => Manifest = manifest;
 
     public void AddLog(string line)
@@ -104,6 +111,12 @@ public partial class RunScriptPreviewItem : ViewModelBase
     partial void OnIsLogsExpandedChanged(bool value) =>
         OnPropertyChanged(nameof(LogsToggleLabel));
 
-    partial void OnStatusChanged(RunPhaseStatus value) =>
+    partial void OnStatusChanged(RunPhaseStatus value)
+    {
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(IsSuccessBadge));
+        OnPropertyChanged(nameof(IsWarningBadge));
+        OnPropertyChanged(nameof(IsErrorBadge));
+        OnPropertyChanged(nameof(IsInfoBadge));
+    }
 }
