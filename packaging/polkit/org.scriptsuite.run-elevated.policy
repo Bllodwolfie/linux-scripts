@@ -8,7 +8,14 @@
        NOTE: polkit does NOT honor per-user action dirs
        (~/.local/share/polkit-1/actions/ is ignored — verified with pkaction
        on KDE Neon), so local dev testing needs one sudo copy of the
-       generated dev policy (see scripts/dev-install-policy.sh). -->
+       generated dev policy (see scripts/dev-install-policy.sh).
+       SECURITY NOTE: polkit pins only exec.path + argv1 (--elevated-run).
+       argv2+ (script id, config/result/live-log/include paths) is validated
+       INSIDE the child on every invocation (Services/ElevatedArgValidator):
+       unknown/non-admin ids, missing caller consent, non-JSON include-only,
+       and out-of-confinement paths abort with exit 2 before anything runs.
+       Tightening this policy file cannot cover those; weakening it does not
+       expose them. Keep this file as is. -->
   <action id="org.scriptsuite.run-elevated">
     <description>Run a ScriptSuite maintenance task with elevated privileges</description>
     <message>Authentication is required to run the elevated maintenance task</message>
