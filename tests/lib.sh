@@ -31,6 +31,11 @@ assert_file_gone() { # name path
     return 0
 }
 
+assert_no_ere() { # name file ere-pattern — fails if the pattern matches anywhere
+    if grep -Eq "$3" "$2"; then t_fail "$1" "matched [$3] in $2"; else t_pass "$1"; fi
+    return 0
+}
+
 # --- fixtures ---------------------------------------------------------------
 # Repo root (tests/ lives at the root).
 repo_root() { canonical_path "$(dirname "${BASH_SOURCE[0]}")/.."; }

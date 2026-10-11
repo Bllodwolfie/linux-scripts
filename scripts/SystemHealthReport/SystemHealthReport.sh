@@ -185,12 +185,13 @@ else
 fi
 
 NET_ROWS=""
+# Windows parity (Win32_NetworkAdapterConfiguration.Description -> "Connected"):
+# adapter name + state only. Never emit IP or MAC addresses here.
 if command -v ip >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-    while IFS=$'\037' read -r ifname addrs; do
+    while IFS= read -r ifname; do
         [[ -z "$ifname" ]] && continue
-        [[ -z "$addrs" ]] && addrs="Connected"
-        NET_ROWS+="<tr><td class=\"key\">$(html_escape "$ifname")</td><td>$(html_escape "$addrs")</td></tr>"
-    done < <(ip -j addr 2>/dev/null | jq -r '.[] | select(.operstate == "UP" and ((.addr_info // []) | length > 0)) | "\(.ifname)\u001f\([.addr_info[] | "\(.local)/\(.prefixlen)"] | join(", "))"' 2>/dev/null)
+        NET_ROWS+="<tr><td class=\"key\">$(html_escape "$ifname")</td><td>Connected</td></tr>"
+    done < <(ip -j addr 2>/dev/null | jq -r '.[] | select(.operstate == "UP" and ((.addr_info // []) | length > 0)) | .ifname' 2>/dev/null)
 fi
 [[ -z "$NET_ROWS" ]] && NET_ROWS='<tr><td colspan="2" style="text-align:center;color:var(--subtext0);">Network information unavailable</td></tr>'
 
