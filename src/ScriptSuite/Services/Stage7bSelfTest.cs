@@ -54,8 +54,8 @@ public static class Stage7bSelfTest
             Check(order == "TempCleanup,DownloadsCleanup,ScreenshotsCleanup,EmptyFolderCleanup,EmptyTrash,ClearJournal,SoftwareInventory,SystemHealthReport",
                 "cards follow BuiltInOrder (got " + order + ")");
             Check(vm.Cards.Count(c => c.RequiresAdmin) == 1 && vm.Cards.First(c => c.RequiresAdmin).Manifest.Id == "ClearJournal",
-                "only ClearJournal carries the ADMIN badge");
-            Check(vm.Cards.All(c => !c.HasSchedule && c.ScheduleSummary == "" && c.LastRunText == "Never run"),
+                "only ClearJournal carries the admin shield");
+            Check(vm.Cards.All(c => !c.HasSchedule && c.ScheduleSummary == "" && !c.HasLastRun),
                 "fresh cards show no schedule and no last run");
             Check(vm.RecentRuns.Count == 1 && vm.RecentScheduled.Count == 1,
                 "empty histories show placeholders");
@@ -177,7 +177,7 @@ public static class Stage7bSelfTest
                     $"card Run recorded Success + summary in RunHistory (got '{rows.FirstOrDefault()?.Outcome}/{rows.FirstOrDefault()?.Summary}')");
                 Check(card.RunStatus.Contains("Success"), "card status line reports Success");
                 vm2.RefreshHistories();
-                Check(card.LastRunText.Contains("Success") && vm2.RecentRuns.Any(l => l.Contains("TempCleanup") && l.Contains("Success")),
+                Check(card.LastRunOutcome == "Success" && vm2.RecentRuns.Any(l => l.Contains("TempCleanup") && l.Contains("Success")),
                     "refresh surfaces the run on the card and in Recent runs");
             }
             finally { TryDelete(scratchConfig); }

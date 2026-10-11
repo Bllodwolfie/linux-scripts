@@ -118,11 +118,37 @@
                                 <TextBlock Text="{Binding Description}"
                                            Foreground="{DynamicResource Brush.Foreground.Secondary}"
                                            TextWrapping="Wrap" Margin="0,2,0,0" />
-                                <TextBlock Text="{Binding LastRunText, StringFormat='Last run: {0}'}"
-                                           FontSize="12" Margin="0,2,0,0"
-                                           Foreground="{DynamicResource Brush.Foreground.Tertiary}" />
-                                <TextBlock Text="{Binding RunStatus}" FontSize="12"
-                                           TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="0" Margin="0,2,0,0"
+                                            IsVisible="{Binding HasLastRun}">
+                                    <TextBlock Text="Last run: " FontSize="12"
+                                               Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding LastRunAgo}" FontSize="12"
+                                               Foreground="{DynamicResource Brush.Foreground.Secondary}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Text=" (" FontSize="12"
+                                               Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                                               VerticalAlignment="Center" />
+                                    <Border CornerRadius="4" Padding="6,1"
+                                            VerticalAlignment="Center"
+                                            Classes.badge-success="{Binding IsSuccessBadge}"
+                                            Classes.badge-warning="{Binding IsWarningBadge}"
+                                            Classes.badge-error="{Binding IsErrorBadge}"
+                                            Classes.badge-info="{Binding IsInfoBadge}">
+                                        <TextBlock Text="{Binding LastRunOutcome}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Classes.badge-success="{Binding IsSuccessBadge}"
+                                                   Classes.badge-warning="{Binding IsWarningBadge}"
+                                                   Classes.badge-error="{Binding IsErrorBadge}"
+                                                   Classes.badge-info="{Binding IsInfoBadge}" />
+                                    </Border>
+                                    <TextBlock Text=")" FontSize="12"
+                                               Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Text="Never run" FontSize="12" Margin="0,2,0,0"
+                                           Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                                           IsVisible="{Binding !HasLastRun}" />
                                 <TextBlock Text="{Binding ScheduleSummary}"
                                            IsVisible="{Binding HasSchedule}"
                                            Foreground="{DynamicResource Brush.Accent.Primary}"

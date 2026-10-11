@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ScriptSuite.Converters;
 using ScriptSuite.Models;
 using ScriptSuite.Services;
 
@@ -29,7 +30,9 @@ public partial class ScriptCardViewModel : ViewModelBase
 
     [ObservableProperty] private bool _hasSchedule;
     [ObservableProperty] private string _scheduleSummary = "";
-    [ObservableProperty] private string _lastRunText = "Never run";
+    [ObservableProperty] private bool _hasLastRun;
+    [ObservableProperty] private string _lastRunAgo = "";
+    [ObservableProperty] private string _lastRunOutcome = "";
     [ObservableProperty] private string _runStatus = "";
     [ObservableProperty] private bool _isRunning;
 
@@ -112,11 +115,59 @@ public partial class ScriptCardViewModel : ViewModelBase
         ScheduleSummary = entry is not null ? "◷ " + SystemdScheduleService.SummaryFor(entry) : "";
     }
 
+    /// <summary>Latest MANUAL run for this script (RunHistory holds manual
+    /// runs only; timer and self-test rows live in ScheduledRuns/scratch
+    /// DBs and never surface here). Ported from windows-scripts.</summary>
     public void RefreshLastRun(IReadOnlyDictionary<string, RunHistoryEntry> latest)
     {
-        LastRunText = latest.TryGetValue(Manifest.Id, out var e)
-            ? $"{e.Outcome} — {e.StartedAt}{(string.IsNullOrWhiteSpace(e.Summary) ? "" : ": " + e.Summary)}"
-            : "Never run";
+        if (latest.TryGetValue(Manifest.Id, out var e))
+        {
+            HasLastRun = true;
+            LastRunAgo = FormatAgo(e.StartedAt);
+            LastRunOutcome = e.Outcome;
+        }
+        else
+        {
+            HasLastRun = false;
+            LastRunAgo = "";
+            LastRunOutcome = "";
+        }
+    }
+
+    /// <summary>Badge style-class predicates for the last-run outcome
+    /// (App.axaml badge-* styles follow the theme live).</summary>
+    public bool IsSuccessBadge => Converters.OutcomeBadge.IsSuccess(LastRunOutcome);
+    public bool IsWarningBadge => Converters.OutcomeBadge.IsWarning(LastRunOutcome);
+    public bool IsErrorBadge => Converters.OutcomeBadge.IsError(LastRunOutcome);
+    public bool IsInfoBadge => Converters.OutcomeBadge.IsInfo(LastRunOutcome);
+
+    partial void OnLastRunOutcomeChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsSuccessBadge));
+        OnPropertyChanged(nameof(IsWarningBadge));
+        OnPropertyChanged(nameof(IsErrorBadge));
+        OnPropertyChanged(nameof(IsInfoBadge));
+    }
+
+    /// <summary>Relative "8 days ago" wording, ported verbatim from
+    /// windows-scripts ScriptRowViewModel.FormatAgo (same storage format
+    /// "yyyy-MM-dd HH:mm:ss", same fallbacks).</summary>
+    internal static string FormatAgo(string? startedAt)
+    {
+        if (string.IsNullOrWhiteSpace(startedAt))
+            return "";
+        if (!DateTime.TryParseExact(startedAt.Trim(), "yyyy-MM-dd HH:mm:ss",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var when))
+            return startedAt.Length >= 10 ? startedAt[..10] : startedAt;
+        var span = DateTime.Now - when;
+        if (span.TotalSeconds < 0) return when.ToString("yyyy-MM-dd");
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} minute{((int)span.TotalMinutes == 1 ? "" : "s")} ago";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours} hour{((int)span.TotalHours == 1 ? "" : "s")} ago";
+        if (span.TotalDays < 1.5) return "yesterday";
+        if (span.TotalDays < 30) return $"{(int)span.TotalDays} days ago";
+        return when.ToString("yyyy-MM-dd");
     }
 
     [RelayCommand]
