@@ -28,15 +28,15 @@ public partial class MainViewModel : ViewModelBase
     public ObservableCollection<string> RecentRuns { get; } = new();
     public ObservableCollection<string> RecentScheduled { get; } = new();
 
-    [ObservableProperty] private string _greeting = "ScriptSuite (Linux — Stage 7b: dashboard + package)";
     [ObservableProperty] private string _stage2Log = "Self-tests not run yet.";
     [ObservableProperty] private bool _isSelfTestRunning;
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private bool _runAllEnabled;
 
-    /// <summary>Header theme toggle label/tooltip (ThemeManager is the source
-    /// of truth; refreshed on toggle and at construction).</summary>
-    [ObservableProperty] private string _themeLabel = "Theme: Dark";
+    /// <summary>Header theme toggle state/tooltip (ThemeManager is the source
+    /// of truth; refreshed on toggle and at construction). The toggle is
+    /// icon-only (moon in Dark, sun in Latte), like windows-scripts.</summary>
+    [ObservableProperty] private bool _isDarkTheme = true;
     [ObservableProperty] private string _themeTip = "Switch to Latte theme";
 
     /// <summary>Dashboard overview panel (the Windows ? panel exists but its
@@ -48,23 +48,23 @@ public partial class MainViewModel : ViewModelBase
         + "live output, Cancel, outcome banner), Settings… edits its config file, Schedule… sets "
         + "a systemd user timer, Hide removes the tile (Show hidden brings it back dimmed). "
         + "Run All runs every checked, visible script in one batch — EmptyTrash first, admin scripts "
-        + "only with risk consent. History… lists manual runs with their log files; Scheduled… lists "
+        + "only with risk consent. History lists manual runs with their log files; Scheduled lists "
         + "timer runs. Every change saves immediately; use the ? panels for per-window details.";
 
     [RelayCommand]
     public void ToggleTheme()
     {
         ThemeManager.Apply(ThemeManager.CurrentTheme == "Dark" ? "Latte" : "Dark");
-        RefreshThemeLabel();
+        RefreshThemeState();
     }
 
     [RelayCommand]
     public void ToggleDashboardHelp() => DashboardHelpVisible = !DashboardHelpVisible;
 
-    private void RefreshThemeLabel()
+    private void RefreshThemeState()
     {
         bool dark = ThemeManager.CurrentTheme == "Dark";
-        ThemeLabel = dark ? "Theme: Dark" : "Theme: Latte";
+        IsDarkTheme = dark;
         ThemeTip = dark ? "Switch to Latte theme" : "Switch to Dark theme";
     }
 
@@ -132,7 +132,7 @@ public partial class MainViewModel : ViewModelBase
         }
         RefreshHistories();
         RefreshRunAllEnabled();
-        RefreshThemeLabel();
+        RefreshThemeState();
     }
 
     /// <summary>Run All target set: enabled + visible + (non-admin or

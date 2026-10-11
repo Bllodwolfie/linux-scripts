@@ -7,7 +7,7 @@
         x:Class="ScriptSuite.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="ScriptSuite"
+        Title="Script Suite"
         Background="{DynamicResource Brush.Background.Primary}"
         Foreground="{DynamicResource Brush.Foreground.Primary}">
 
@@ -16,34 +16,75 @@
     </Design.DataContext>
 
     <ScrollViewer>
-    <StackPanel Margin="24" Spacing="12">
-        <DockPanel>
-            <TextBlock Text="{Binding Greeting}" FontSize="20" FontWeight="Bold"
-                       VerticalAlignment="Center" />
-            <StackPanel Orientation="Horizontal" Spacing="8"
-                        HorizontalAlignment="Right" DockPanel.Dock="Right">
-                <Button Content="?" Command="{Binding ToggleDashboardHelpCommand}"
-                        Width="24" Height="24" ToolTip.Tip="Dashboard help" />
-                <Button Content="{Binding ThemeLabel}"
-                        Command="{Binding ToggleThemeCommand}"
-                        ToolTip.Tip="{Binding ThemeTip}" />
-                <CheckBox Content="Show hidden" IsChecked="{Binding ShowHidden}"
-                          VerticalAlignment="Center" />
-                <Button Content="Run All" Command="{Binding OpenRunAllCommand}"
-                        IsEnabled="{Binding RunAllEnabled}" />
-                <Button Content="History…" Command="{Binding OpenHistoryCommand}" />
-                <Button Content="Scheduled…" Command="{Binding OpenScheduledHistoryCommand}" />
-                <Button Content="Refresh" Command="{Binding RefreshCommand}" />
+    <StackPanel Margin="24,16,24,20" Spacing="0">
+        <!-- Header row: title + subtitle left, help right (like Windows). -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <TextBlock Text="Script Suite" FontSize="26" FontWeight="Bold"
+                           Foreground="{DynamicResource Brush.Foreground.Primary}"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="Dashboard" FontSize="16"
+                           Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                           VerticalAlignment="Bottom" Margin="12,0,0,4" />
             </StackPanel>
-        </DockPanel>
+            <Button Grid.Column="1" Content="?" Command="{Binding ToggleDashboardHelpCommand}"
+                    Width="22" Height="22" FontSize="11" FontWeight="SemiBold"
+                    VerticalAlignment="Center" ToolTip.Tip="Dashboard help" />
+        </Grid>
 
         <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
-                BorderThickness="1" CornerRadius="6" Padding="10"
+                BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0"
                 IsVisible="{Binding DashboardHelpVisible}">
             <TextBlock Text="{Binding DashboardHelpText}" FontSize="12"
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource Brush.Foreground.Secondary}" />
         </Border>
+
+        <!-- Controls row: Show hidden left; theme toggle + History/Scheduled/Run All right. -->
+        <Grid Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <CheckBox Grid.Column="0" Content="Show hidden" IsChecked="{Binding ShowHidden}"
+                      VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                        VerticalAlignment="Center">
+                <Button Command="{Binding ToggleThemeCommand}"
+                        ToolTip.Tip="{Binding ThemeTip}"
+                        Margin="0,0,12,0" VerticalAlignment="Center">
+                    <Grid Width="22" Height="22">
+                        <!-- Moon (shown in Dark): M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z -->
+                        <Path Data="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                              Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.9"
+                             
+                              Fill="Transparent" Stretch="Uniform"
+                              IsVisible="{Binding IsDarkTheme}" />
+                        <!-- Sun (shown in Latte): circle r=5 + 8 rays -->
+                        <Grid IsVisible="{Binding !IsDarkTheme}">
+                            <Ellipse Width="10" Height="10" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.9"
+                                     Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Line StartPoint="11,1" EndPoint="11,3.5" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                            <Line StartPoint="11,18.5" EndPoint="11,21" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                            <Line StartPoint="1,11" EndPoint="3.5,11" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                            <Line StartPoint="18.5,11" EndPoint="21,11" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                            <Line StartPoint="3.9,3.9" EndPoint="5.7,5.7" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                            <Line StartPoint="16.3,16.3" EndPoint="18.1,18.1" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                            <Line StartPoint="3.9,18.1" EndPoint="5.7,16.3" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                            <Line StartPoint="16.3,5.7" EndPoint="18.1,3.9" Stroke="{DynamicResource Brush.Foreground.Primary}" StrokeThickness="1.7" />
+                        </Grid>
+                    </Grid>
+                </Button>
+                <Button Content="History" Command="{Binding OpenHistoryCommand}" Padding="16,8" Margin="0,0,8,0" />
+                <Button Content="Scheduled" Command="{Binding OpenScheduledHistoryCommand}" Padding="16,8" Margin="0,0,8,0" />
+                <Button Content="Run All" Command="{Binding OpenRunAllCommand}"
+                        IsEnabled="{Binding RunAllEnabled}" FontWeight="SemiBold" Padding="20,8" />
+            </StackPanel>
+        </Grid>
 
         <ItemsControl ItemsSource="{Binding Cards}">
             <ItemsControl.ItemTemplate>

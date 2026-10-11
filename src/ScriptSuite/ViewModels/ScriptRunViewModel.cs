@@ -89,7 +89,7 @@ public partial class ScriptRunViewModel : ViewModelBase
         _marshal = marshal ?? (a => Dispatcher.UIThread.Post(a));
     }
 
-    public string Title => "Run — " + _manifest.DisplayName;
+    public string Title => "Run Script";
     public string DisplayName => _manifest.DisplayName;
     public string Description => _manifest.DisplayName + " — " + _manifest.Description;
     public bool ShowAdminBadge => _manifest.RequiresAdmin;
