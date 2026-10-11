@@ -68,6 +68,38 @@ fi
 # (expand_user_path: leading ~ plus $HOME/$USER, no eval).
 BACKUP_DIR=$(expand_user_path "$BACKUP_DIR")
 
+# --- BackupDir hardening (G-4/G-5): this path is root-wielded when elevated
+# --- but read from a user-writable config, so it is validated BEFORE any
+# --- root/vacuum logic. Canonicalise, refuse protected roots, refuse
+# --- symlinked or foreign-owned existing components (expected owner = the
+# --- pkexec caller when elevated, else ourselves).
+EXPECTED_OWNER="${PKEXEC_UID:-$EUID}"
+BACKUP_DIR="${BACKUP_DIR%/}"
+CANON_BACKUP=$(canonical "$BACKUP_DIR")
+if ! guard_dangerous_root "$CANON_BACKUP"; then
+    error "BackupDir $BACKUP_DIR resolves to a protected system path — refusing (it would run as root when elevated)."
+    exit 1
+fi
+# Component walk on the UNRESOLVED path: canonical() resolves symlinks away,
+# which would hide a planted link. Every existing prefix must itself be a
+# non-symlink owned by the invoking user or root; non-existent tails are
+# skipped (mkdir -p creates them as EUID below).
+_rest="$BACKUP_DIR"
+while [[ -n "$_rest" && "$_rest" != "/" && "$_rest" != "." ]]; do
+    if [[ -L "$_rest" ]]; then
+        error "BackupDir $BACKUP_DIR contains a symlinked component ($_rest) — refusing."
+        exit 1
+    fi
+    if [[ -e "$_rest" ]]; then
+        _owner=$(stat -c %u -- "$_rest" 2>/dev/null || echo "")
+        if [[ "$_owner" != "$EXPECTED_OWNER" && "$_owner" != "0" ]]; then
+            error "BackupDir $BACKUP_DIR is not owned by the invoking user (uid $_owner at $_rest) — refusing."
+            exit 1
+        fi
+    fi
+    _rest=$(dirname -- "$_rest")
+done
+
 if [[ "$SCOPE" != "user" && "$SCOPE" != "system" ]]; then
     warn "Scope '$SCOPE' is invalid (want user|system) — using default system."
     SCOPE="system"
@@ -196,16 +228,28 @@ if ! mkdir -p -- "$BACKUP_DIR" 2>/dev/null; then
     exit 1
 fi
 STAMP=$(date '+%Y%m%d_%H%M%S')
-EXPORT="$BACKUP_DIR/journal-$SCOPE-$STAMP.export"
+# Unpredictable name (H-7: seconds-only STAMP let an attacker pre-plant the
+# export symlink). Opened exactly once, exclusively: noclobber makes > fail
+# when the file already exists, so a planted path aborts instead of being
+# followed — there is no create-then-reopen window to race.
+EXPORT="$BACKUP_DIR/journal-$SCOPE-$STAMP-$$-$RANDOM.export"
+set -C
+if ! exec {EXPORT_FD}>"$EXPORT" 2>/dev/null; then
+    set +C
+    error "Cannot create export $EXPORT exclusively (already exists?) — aborting before any vacuum."
+    exit 1
+fi
+set +C
+# Every write below addresses the held fd (>&$EXPORT_FD), never the path:
+# a mid-run swap of BackupDir cannot redirect these writes.
 if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
-    : > "$EXPORT" || { error "Cannot write export $EXPORT — aborting before any vacuum."; exit 1; }
     for t in ${ONLY_LIST[@]+"${ONLY_LIST[@]}"}; do
         bid="${t#boot }"; bid="${bid%% *}"
-        "${JCTL[@]}" -b "$bid" -o export >> "$EXPORT" 2>/dev/null || \
+        "${JCTL[@]}" -b "$bid" -o export >&$EXPORT_FD 2>/dev/null || \
             warn "Export of $t failed — continuing with the remaining selection."
     done
 else
-    if ! "${JCTL[@]}" --until "$CUTOFF_STR" -o export > "$EXPORT" 2>/dev/null; then
+    if ! "${JCTL[@]}" --until "$CUTOFF_STR" -o export >&$EXPORT_FD 2>/dev/null; then
         error "Pre-vacuum export failed — aborting before any vacuum."
         rm -f -- "$EXPORT"
         exit 1
@@ -213,9 +257,10 @@ else
 fi
 # An empty export is legitimate (nothing in scope to preserve) but must never
 # look like a silent failure: say so explicitly.
-if [[ ! -s "$EXPORT" ]]; then
+if [[ ! -s /dev/fd/$EXPORT_FD ]]; then
     warn "Pre-vacuum export is empty — no entries in scope exist to preserve."
 fi
+exec {EXPORT_FD}>&-
 
 VAC_ARGS=(--vacuum-time="$VTIME")
 [[ -n "$VSIZE" ]] && VAC_ARGS+=(--vacuum-size="$VSIZE")

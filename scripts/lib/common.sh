@@ -184,11 +184,14 @@ is_absolute() { # path
 }
 
 # Refuse targets that would endanger the system. Returns 0 when safe.
+# System entries match by PREFIX (/etc/cron.d is as protected as /etc);
+# the user's own $HOME matches exact-only so $HOME/subdirs stay usable.
 guard_dangerous_root() { # canonical-target
-    local t="$1" home="${HOME:-/root}"
-    case "$t" in
-        /|/home|/root|/etc|/usr|/bin|/sbin|/var|/boot|/proc|/sys|/dev|/run|"$home")
-            return 1 ;;
-    esac
+    local t="$1" home="${HOME:-/root}" d
+    [[ "$t" == "/" ]] && return 1
+    for d in /home /root /etc /usr /bin /sbin /var /boot /proc /sys /dev /run; do
+        [[ "$t" == "$d" || "$t" == "$d"/* ]] && return 1
+    done
+    [[ "$t" == "$home" ]] && return 1
     return 0
 }
