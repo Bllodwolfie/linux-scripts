@@ -76,6 +76,9 @@ public sealed class PolkitElevationService
         {
             FileName = "pkexec",
             RedirectStandardOutput = true,
+            // Captured so a refusal/crash reason reaches the Output pane
+            // (the child prints refusals here, never to the result file).
+            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
@@ -127,6 +130,14 @@ public sealed class PolkitElevationService
 
         try { child.StandardOutput.ReadToEnd(); } catch { }
         child.WaitForExit();
+        var childStderr = new List<string>();
+        try
+        {
+            foreach (var line in child.StandardError.ReadToEnd()
+                         .Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                childStderr.Add(line.TrimEnd('\r'));
+        }
+        catch { }
         TryDelete(liveLog);
         TryDelete(includePath);
 
@@ -157,11 +168,17 @@ public sealed class PolkitElevationService
 
         if (!File.Exists(resultPath))
         {
+            // Surface the reason in the Output pane, not just History: pump
+            // the child's stderr through the live-log callback too.
+            var logs = NoResultLogs(child.ExitCode, childStderr);
+            if (onLogLine != null)
+                foreach (var line in logs)
+                    try { onLogLine(line); } catch { }
             return new ScriptRunResult
             {
                 Outcome = RunOutcome.Failed,
                 ScriptId = scriptId,
-                Logs = new List<string> { "The elevated helper did not write a result file." },
+                Logs = logs,
             };
         }
 
@@ -290,6 +307,21 @@ public sealed class PolkitElevationService
             "--include-only", preview.IncludePath,
         };
         return argv;
+    }
+
+    /// <summary>Log lines for a run whose child never wrote a result file
+    /// (refusal, crash, transport failure): the header plus the child's own
+    /// stderr, verbatim — that line names the reason (e.g. "Elevated child
+    /// refused: …"). Pure: unit-covered by Stage 4.</summary>
+    public static List<string> NoResultLogs(int childExitCode, IReadOnlyList<string> childStderrLines)
+    {
+        var logs = new List<string> { "The elevated helper did not write a result file." };
+        foreach (var line in childStderrLines)
+            if (!string.IsNullOrWhiteSpace(line))
+                logs.Add(line.Trim());
+        if (logs.Count == 1)
+            logs.Add($"(elevated child exit code: {childExitCode})");
+        return logs;
     }
 
     private static (int emitted, string carry) PumpLiveLog(string path, int emitted, string carry, Action<string> onLine)

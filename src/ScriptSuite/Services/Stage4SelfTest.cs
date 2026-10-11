@@ -150,6 +150,21 @@ public static class Stage4SelfTest
                     $"unknown-id child rejected: exit={unkExit}{unkErr}");
             }
 
+            // --- 7e. no-result UX contract: the child's stderr reason is what
+            // --- the parent shows in the Output pane (not just History). ---
+            {
+                var logs = PolkitElevationService.NoResultLogs(2, new List<string>
+                {
+                    "Elevated child refused: Elevated result directory '/run/user/1000' is outside the caller's runtime dirs — refusing.",
+                });
+                Check(logs.Count == 2 && logs[0].Contains("did not write a result file")
+                        && logs[1].StartsWith("Elevated child refused:"),
+                    "no-result logs carry the child stderr reason");
+                var bare = PolkitElevationService.NoResultLogs(1, new List<string>());
+                Check(bare.Count == 2 && bare[1].Contains("exit code: 1"),
+                    "no-result logs fall back to the exit code with a silent child");
+            }
+
             // --- 7f. production path builder: PreviewArgv uses the same
             // --- ElevatedPaths.Build the parent spawns with (no placeholders),
             // --- so previews and tests cannot drift from pkexec argv. ---
