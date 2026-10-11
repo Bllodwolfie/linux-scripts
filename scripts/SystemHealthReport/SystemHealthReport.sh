@@ -36,6 +36,15 @@ done
 
 require_jq || exit 1
 
+# Plain asset filenames only (letters, digits, dot, underscore, dash — no
+# slashes, quotes, whitespace, or ".."): CatImage* values land in an
+# <img src='...'> attribute AND in a cp destination, so anything else is
+# rejected (H-5: x' onerror='alert(1) broke out of the attribute).
+# (Defined before first use — bash executes top-level statements in order.)
+is_plain_filename() { # value
+    [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]] && [[ "$1" != *".."* ]]
+}
+
 # --- config (palettes ride along from DefaultConfigs via seeding; the shipped
 # --- DefaultConfigs file is the fallback when the user config lacks them) ---
 OUTPUT_DIR="$HOME/Documents"
@@ -68,6 +77,15 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
 fi
 OUTPUT_DIR=$(expand_user_path "$OUTPUT_DIR")
 
+if ! is_plain_filename "$CAT_DARK"; then
+    warn "CatImageDark '$CAT_DARK' is not a plain filename — using default cat_bobber-dark.png."
+    CAT_DARK="cat_bobber-dark.png"
+fi
+if ! is_plain_filename "$CAT_LIGHT"; then
+    warn "CatImageLight '$CAT_LIGHT' is not a plain filename — using default cat_bobber-light.png."
+    CAT_LIGHT="cat_bobber-light.png"
+fi
+
 if [[ "$OUTPUT_DIR" != /* ]]; then
     error "Path must be absolute: $OUTPUT_DIR"
     exit 1
@@ -87,22 +105,41 @@ if [[ -e "$OUTPUT_PATH" && -d "$OUTPUT_PATH" ]]; then
 fi
 
 # Palette -> CSS vars (toolbarBg gets the --toolbar-bg name, like Write-Palette).
-palette_css() { # Mocha|Latte
-    local src="$CONFIG_PATH" block=""
-    if [[ -n "$src" && -f "$src" ]] && cfg_usable "$src"; then
-        block=$(jq -r --arg k "$1" '.[$k] // {} | to_entries[] | "--\(if .key == "toolbarBg" then "toolbar-bg" else .key end): \(.value);"' "$src" 2>/dev/null)
+# Defaults come from the shipped DefaultConfigs; user-config values override
+# per key ONLY when they validate as #rgb hex (H-4: a raw "</style><script>"
+# palette value broke out of the <style> block — CSS context, so validation,
+# not escaping, is the fix). Invalid values warn and keep the default.
+# CSS goes to the named variable (NOT stdout): this function may WARN on
+# rejected values, and those lines must reach stdout — not the <style> block.
+palette_css() { # theme outvar
+    local theme="$1" _outvar="$2" src="$CONFIG_PATH" shipped="" defs="" css=""
+    local key val uval
+    for cand in "$HERE/../DefaultConfigs/SystemHealthReport.json" \
+               "$HERE/../../src/ScriptSuite/DefaultConfigs/SystemHealthReport.json" \
+               "/usr/lib/scriptsuite/DefaultConfigs/SystemHealthReport.json"; do
+        [[ -f "$cand" ]] && { shipped="$cand"; break; }
+    done
+    if [[ -n "$shipped" ]]; then
+        defs=$(jq -r --arg k "$theme" '.[$k] // {} | to_entries[] | "\(.key)=\(.value)"' "$shipped" 2>/dev/null)
     fi
-    if [[ -z "$block" ]]; then
-        local shipped=""
-        for cand in "$HERE/../DefaultConfigs/SystemHealthReport.json" "/usr/lib/scriptsuite/DefaultConfigs/SystemHealthReport.json"; do
-            [[ -f "$cand" ]] && { shipped="$cand"; break; }
-        done
-        if [[ -n "$shipped" ]]; then
-            block=$(jq -r --arg k "$1" '.[$k] // {} | to_entries[] | "--\(if .key == "toolbarBg" then "toolbar-bg" else .key end): \(.value);"' "$shipped" 2>/dev/null)
+    if [[ -z "$defs" ]]; then
+        printf -v "$_outvar" '%s' "    --base: #1e1e2e; --text: #cdd6f4; --green: #a6e3a1; --yellow: #f9e2af; --red: #f38ba8; --mauve: #cba6f7;"
+        return 0
+    fi
+    while IFS='=' read -r key val; do
+        [[ -z "$key" ]] && continue
+        uval=""
+        if [[ -n "$src" && -f "$src" ]] && cfg_usable "$src" 2>/dev/null; then
+            uval=$(jq -r --arg t "$theme" --arg k "$key" '.[$t][$k] // empty' "$src" 2>/dev/null)
         fi
-    fi
-    [[ -z "$block" ]] && block="--base: #1e1e2e; --text: #cdd6f4; --green: #a6e3a1; --yellow: #f9e2af; --red: #f38ba8; --mauve: #cba6f7;"
-    printf '%s\n' "$block" | sed 's/^/    /'
+        if [[ -n "$uval" && "$uval" != "$val" ]]; then
+            if [[ "$uval" =~ ^#[0-9A-Fa-f]{3,8}$ ]]; then val="$uval"
+            else warn "SystemHealthReport palette $theme.$key value is not a #rgb hex color — using default."; fi
+        fi
+        [[ "$key" == "toolbarBg" ]] && key="toolbar-bg"
+        css+="    --$key: $val;"$'\n'
+    done <<< "$defs"
+    printf -v "$_outvar" '%s' "$css"
 }
 
 risk_color() { # pct -> css var
@@ -259,6 +296,12 @@ UPTIME_TXT="$UP_D days, $UP_H hours, $UP_M minutes"
 BOOT_SHORT=$(date -d "$LAST_BOOT" '+%b %d, %H:%M' 2>/dev/null || printf '%s' "$LAST_BOOT")
 GEN_DATE=$(date '+%d/%m/%Y %H:%M')
 
+# Pre-render palettes BEFORE the HTML assembly: palette_css may WARN on
+# rejected values, and those lines must reach stdout — not the <style> block.
+MOCHA_CSS=""; LATTE_CSS=""
+palette_css Mocha MOCHA_CSS
+palette_css Latte LATTE_CSS
+
 # ----- assembly -----
 TMP_HTML=$(mktemp) || { error "Cannot create temp file."; exit 1; }
 trap 'rm -f -- "$TMP_HTML"' EXIT
@@ -273,10 +316,10 @@ cat <<EOF
 <style>
 :root {
     --radius-md: 16px; --radius-lg: 20px;
-$(palette_css Mocha)
+$MOCHA_CSS
 }
 [data-theme="latte"] {
-$(palette_css Latte)
+$LATTE_CSS
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: sans-serif; background: var(--base); color: var(--text); padding: 20px; }
