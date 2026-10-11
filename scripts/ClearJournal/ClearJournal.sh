@@ -47,12 +47,26 @@ done
 
 require_jq || exit 1
 
+# --- caller identity (privileged tier): $HOME and ~ in BackupDir (and its
+# --- default) expand from the INVOKING user's passwd entry — never root's
+# --- HOME, which is all an elevated process sees. Unprivileged tier uses our
+# --- own $HOME. Unresolvable uid fails closed before any config is trusted.
+CALLER_HOME="$HOME"
+CALLER_USER="${USER:-}"
+if [[ -n "${PKEXEC_UID:-}" ]]; then
+    CALLER_HOME="$(caller_home_for_uid "$PKEXEC_UID")" || {
+        error "Cannot resolve home directory for uid $PKEXEC_UID — aborting before any vacuum."
+        exit 1
+    }
+    CALLER_USER="$(caller_name_for_uid "$PKEXEC_UID")"
+fi
+
 # --- config (deviates from ClearEventLogs.ps1 in one place: corrupt config
 # --- warns + falls back instead of throwing, like our other scripts) ---
 SCOPE="system"
 VTIME="7d"
 VSIZE=""
-BACKUP_DIR="$HOME/Documents/Script_Logs/JournalBackups"
+BACKUP_DIR="$CALLER_HOME/Documents/Script_Logs/JournalBackups"
 if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
     if ! cfg_usable "$CONFIG_PATH"; then
         warn "ClearJournal config is corrupt or unreadable at $CONFIG_PATH — using defaults (Scope=system, VacuumTime=7d). Check or reset the config via Settings."
@@ -60,13 +74,14 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
         SCOPE=$(cfg_str "$CONFIG_PATH" "Scope" "system")
         VTIME=$(cfg_str "$CONFIG_PATH" "VacuumTime" "7d")
         VSIZE=$(cfg_str "$CONFIG_PATH" "VacuumSize" "")
-        BACKUP_DIR=$(cfg_str "$CONFIG_PATH" "BackupDir" "$HOME/Documents/Script_Logs/JournalBackups")
+        BACKUP_DIR=$(cfg_str "$CONFIG_PATH" "BackupDir" "$CALLER_HOME/Documents/Script_Logs/JournalBackups")
     fi
 fi
 
 # Minimal env expansion for config paths lives in common.sh
-# (expand_user_path: leading ~ plus $HOME/$USER, no eval).
-BACKUP_DIR=$(expand_user_path "$BACKUP_DIR")
+# (expand_user_path: leading ~ plus $HOME/$USER, no eval — from the caller
+# identity above, never root's environment when elevated).
+BACKUP_DIR=$(expand_user_path "$BACKUP_DIR" "$CALLER_HOME" "$CALLER_USER")
 
 # --- BackupDir hardening (G-4/G-5): this path is root-wielded when elevated
 # --- but read from a user-writable config, so it is validated BEFORE any
@@ -76,7 +91,7 @@ BACKUP_DIR=$(expand_user_path "$BACKUP_DIR")
 EXPECTED_OWNER="${PKEXEC_UID:-$EUID}"
 BACKUP_DIR="${BACKUP_DIR%/}"
 CANON_BACKUP=$(canonical "$BACKUP_DIR")
-if ! guard_dangerous_root "$CANON_BACKUP"; then
+if ! guard_dangerous_root "$CANON_BACKUP" "$CALLER_HOME"; then
     error "BackupDir $BACKUP_DIR resolves to a protected system path — refusing (it would run as root when elevated)."
     exit 1
 fi

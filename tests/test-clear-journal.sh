@@ -158,3 +158,38 @@ else
     ORIG_LINES=$(find "$SWAPD/bk.orig" -name '*.export' -exec cat {} + 2>/dev/null | grep -c EXPORT_LINE_ || true)
     assert_eq "journal-swap-orig-complete" "60" "$ORIG_LINES"
 fi
+
+# Privileged-tier caller-home expansion: with HOME=/root (all an elevated
+# process sees) + PKEXEC_UID of the invoking user, $HOME/~ in BackupDir and
+# its default must resolve under the CALLER's home — never /root.
+MYUID=$(id -u)
+CALLERHOME=$(getent passwd "$MYUID" | cut -d: -f6)
+
+# Tier preview: default BackupDir (no key), dry-run, zero writes. The Clear
+# items name the resolved export dir, proving expansion (VacuumTime 0d makes
+# every boot Clear deterministically).
+CFG_NODEF=$(make_config ClearJournalNoDef '{"Scope":"user","VacuumTime":"0d","VacuumSize":""}')
+HOME=/root PKEXEC_UID=$MYUID run_case ClearJournal --config-path "$CFG_NODEF" --dry-run
+assert_eq "tier-def-preview-exit" "0" "$T_RC"
+assert_contains "tier-def-resolves-caller" "$(cat "$T_OUT")" "$CALLERHOME/Documents/Script_Logs/JournalBackups"
+assert_no_ere "tier-def-no-root" "$T_OUT" '/root/Documents'
+
+# Tier real run: literal $HOME BackupDir + real setpriv writer. Proves the
+# end-to-end path lands in the caller's home with real bytes in it.
+export JSTUB_SETPRIV_EXEC=1 JSTUB_SLOW=0 JSTUB_EXPORT_RC=0
+export JSTUB_SETPRIV_LOG="$T_SCRATCH/setpriv-tier.log" JSTUB_VACLOG="$T_SCRATCH/vacuum-tier.log"
+TIERLEAF="tier-bk-$$"
+CFG_TIER=$(make_config ClearJournalTier '{"Scope":"user","VacuumTime":"7d","VacuumSize":"","BackupDir":"$HOME/'"$TIERLEAF"'"}')
+HOME=/root PKEXEC_UID=$MYUID PATH="$STUBBIN:$PATH" run_case ClearJournal --config-path "$CFG_TIER"
+assert_eq "tier-real-exit" "0" "$T_RC"
+TIEREXPORT=$(find "$CALLERHOME/$TIERLEAF" -name 'journal-user-*.export' 2>/dev/null | head -n 1)
+assert_file_exists "tier-real-export-in-caller-home" "$TIEREXPORT"
+assert_contains "tier-real-export-bytes" "$(cat "$TIEREXPORT" 2>/dev/null)" "STUB_EXPORT_LINE"
+assert_contains "journal-setpriv-tier-path" "$(cat "$T_SCRATCH/setpriv-tier.log" 2>/dev/null)" "$CALLERHOME/$TIERLEAF"
+rm -rf -- "$CALLERHOME/$TIERLEAF"
+
+# Tier fail-closed: unresolvable PKEXEC_UID aborts before anything runs.
+CFG_BADUID=$(make_config ClearJournalBadUid '{"Scope":"user","VacuumTime":"7d","VacuumSize":""}')
+HOME=/root PKEXEC_UID=60000 run_case ClearJournal --config-path "$CFG_BADUID" --dry-run
+assert_eq "tier-baduid-exit" "1" "$T_RC"
+assert_contains "tier-baduid-reason" "$(cat "$T_OUT")" "Cannot resolve home"
