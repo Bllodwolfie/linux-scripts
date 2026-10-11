@@ -14,7 +14,9 @@ export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 override_dh_auto_build:
 	dotnet publish src/ScriptSuite/ScriptSuite.csproj -c Release -r linux-x64 \
 		--self-contained -p:PublishSingleFile=true -p:InvariantGlobalization=true \
-		-o debian/publish
+		-p:DebugType=none -o debian/publish
+# DebugType=none: no .pdb / SourceLink ships in the .deb, so no build
+# paths or usernames leak into the package.
 
 override_dh_auto_clean:
 	rm -rf debian/publish debian/scriptsuite
