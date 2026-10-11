@@ -17,24 +17,19 @@
 
     <ScrollViewer>
     <StackPanel Margin="24,16,24,20" Spacing="0">
-        <!-- Header row: title + subtitle left, help right (like Windows). -->
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <TextBlock Text="Script Suite" FontSize="26" FontWeight="Bold"
-                           Foreground="{DynamicResource Brush.Foreground.Primary}"
-                           VerticalAlignment="Center" />
-                <TextBlock Text="Dashboard" FontSize="16"
-                           Foreground="{DynamicResource Brush.Foreground.Tertiary}"
-                           VerticalAlignment="Bottom" Margin="12,0,0,4" />
-            </StackPanel>
-            <Button Grid.Column="1" Content="?" Command="{Binding ToggleDashboardHelpCommand}"
+        <!-- Header row: title + subtitle + help (like Windows). -->
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Text="Script Suite" FontSize="26" FontWeight="Bold"
+                       Foreground="{DynamicResource Brush.Foreground.Primary}"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="Dashboard" FontSize="16"
+                       Foreground="{DynamicResource Brush.Foreground.Tertiary}"
+                       VerticalAlignment="Bottom" Margin="12,0,0,4" />
+            <Button Content="?" Command="{Binding ToggleDashboardHelpCommand}"
                     Width="22" Height="22" FontSize="11" FontWeight="SemiBold"
-                    VerticalAlignment="Center" ToolTip.Tip="Dashboard help" />
-        </Grid>
+                    Margin="12,0,0,0" VerticalAlignment="Center"
+                    ToolTip.Tip="Dashboard help" />
+        </StackPanel>
 
         <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
                 BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0"
