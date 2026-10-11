@@ -92,6 +92,20 @@ sealed class Program
         }
 
         var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
+        try
+        {
+            // Child-side argv validation (G-1): polkit authorizes the binary
+            // + argv1 only, so hostile argv2+ must die here, not in the parent.
+            ElevatedArgValidator.Validate(scriptId, configPath, resultPath,
+                liveLogPath, includeOnlyPath, catalog,
+                ElevatedArgValidator.TryGetPrivilegedCaller());
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine("Elevated child refused: " + ex.Message);
+            return 2;
+        }
+
         var consents = new RiskConsentStore(AppPaths.RiskConsentsPath);
         var elevation = new PolkitElevationService(catalog, consents);
         return elevation.RunElevatedChild(scriptId, configPath, resultPath, liveLogPath, includeOnlyPath);

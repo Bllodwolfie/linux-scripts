@@ -190,30 +190,52 @@ public sealed class PolkitElevationService
         };
         try
         {
+            // Strict re-read (validated by Program.cs before the run; a swap
+            // since then fails closed here instead of widening, G-7).
             IReadOnlyList<string>? includeOnly = null;
             if (includeOnlyPath is not null && File.Exists(includeOnlyPath))
+                includeOnly = ElevatedArgValidator.ReadIncludeFile(includeOnlyPath);
+
+            // Live log: exclusive create, single held stream. A pre-existing
+            // path (plant) aborts the run — we never append through it (G-3).
+            StreamWriter? live = null;
+            if (liveLogPath is not null)
             {
                 try
                 {
-                    includeOnly = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(includeOnlyPath));
+                    live = new StreamWriter(NativeLib.CreateExclusive(liveLogPath))
+                    {
+                        AutoFlush = true,
+                    };
                 }
-                catch (JsonException) { /* treat as unrestricted */ }
+                catch (InvalidOperationException ex)
+                {
+                    Console.Error.WriteLine("Elevated child refused: " + ex.Message);
+                    return 2;
+                }
             }
 
             Action<string>? onLine = null;
-            if (liveLogPath is not null)
+            if (live is not null)
                 onLine = line =>
                 {
-                    try { File.AppendAllText(liveLogPath, line + Environment.NewLine); }
-                    catch { /* parent cleaned up mid-run; best effort */ }
+                    try { live.WriteLine(line); }
+                    catch { /* best effort */ }
                 };
 
-            var executor = new BashScriptExecutor(_catalog);
-            var result = executor.Execute(scriptId, configPath, dryRun: false, includeOnly, onLine);
-            payload["Outcome"] = OutcomeToString(result.Outcome);
-            payload["Logs"] = result.Logs;
-            payload["ItemCounts"] = result.ItemCounts;
-            payload["ExitCode"] = 0;
+            try
+            {
+                var executor = new BashScriptExecutor(_catalog);
+                var result = executor.Execute(scriptId, configPath, dryRun: false, includeOnly, onLine);
+                payload["Outcome"] = OutcomeToString(result.Outcome);
+                payload["Logs"] = result.Logs;
+                payload["ItemCounts"] = result.ItemCounts;
+                payload["ExitCode"] = 0;
+            }
+            finally
+            {
+                try { live?.Dispose(); } catch { }
+            }
         }
         catch (Exception ex)
         {
@@ -222,8 +244,19 @@ public sealed class PolkitElevationService
             payload["ExitCode"] = -1;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(resultPath)!);
-        File.WriteAllText(resultPath, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+        // Exclusive create: never truncate a planted file, never crash (the
+        // old File.WriteAllText outside try SIGABRTed on hostile paths).
+        try
+        {
+            using var fs = NativeLib.CreateExclusive(resultPath);
+            using var sw = new StreamWriter(fs);
+            sw.Write(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Elevated child failed to write result: " + ex.Message);
+            return 1;
+        }
         return 0;
     }
 
@@ -233,6 +266,13 @@ public sealed class PolkitElevationService
     public IReadOnlyList<string> PreviewArgv(string scriptId, string configPath,
         IReadOnlyList<string>? includeOnly = null)
     {
+        // Same identity gate as the child: unknown/non-admin ids are rejected
+        // at preview time, not at authorization time.
+        var manifest = _catalog.Find(scriptId)
+            ?? throw new InvalidOperationException($"Unknown script id: '{scriptId}'.");
+        if (!manifest.RequiresAdmin)
+            throw new InvalidOperationException(
+                $"Script '{scriptId}' is not elevation-eligible (requiresAdmin=false).");
         string self = HelperPath;
         if (string.IsNullOrEmpty(self))
             throw new InvalidOperationException("Environment.ProcessPath is null.");
