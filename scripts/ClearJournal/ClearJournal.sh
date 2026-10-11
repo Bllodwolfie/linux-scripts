@@ -223,44 +223,74 @@ fi
 if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
     warn "Vacuum applies retention-globally to all boots; the selection scoped the export backup only."
 fi
-if ! mkdir -p -- "$BACKUP_DIR" 2>/dev/null; then
+STAMP=$(date '+%Y%m%d_%H%M%S')
+# Unpredictable name (H-7: seconds-only STAMP let an attacker pre-plant the
+# export symlink).
+EXPORT="$BACKUP_DIR/journal-$SCOPE-$STAMP-$$-$RANDOM.export"
+
+# --- dropped-privilege writer (G-4): root NEVER opens the user path — not
+# --- even to create it. All export bytes flow journalctl -> pipe -> setpriv
+# --- (uid:gid of the pkexec caller, else ourselves) -> cat, which opens the
+# --- file exactly once with noclobber (O_EXCL: plants abort). The upfront
+# --- BackupDir validation stays as defence in depth (clear errors) plus a
+# --- mkdir backstop; setpriv is util-linux (Priority: required), hard fail
+# --- if missing. --clear-groups needs privilege (setgroups EPERM as user,
+# --- verified), so unprivileged runs keep their own groups instead.
+WRITE_UID="${PKEXEC_UID:-$EUID}"
+if ! command -v setpriv >/dev/null 2>&1; then
+    error "setpriv is required for the privilege-dropping export writer — aborting before any vacuum."
+    exit 1
+fi
+WRITE_GID="$(id -g -- "$WRITE_UID" 2>/dev/null)" || {
+    error "Cannot resolve gid for uid $WRITE_UID — aborting before any vacuum."
+    exit 1
+}
+SETPRIV_FLAGS=(--reuid="$WRITE_UID" --regid="$WRITE_GID" --no-new-privs)
+if [[ "$EUID" -eq 0 ]]; then SETPRIV_FLAGS+=(--clear-groups); else SETPRIV_FLAGS+=(--keep-groups); fi
+run_as_writer() { setpriv "${SETPRIV_FLAGS[@]}" -- "$@"; }
+
+if ! run_as_writer mkdir -p -- "$BACKUP_DIR" 2>/dev/null; then
     error "Cannot create BackupDir $BACKUP_DIR — aborting before any vacuum."
     exit 1
 fi
-STAMP=$(date '+%Y%m%d_%H%M%S')
-# Unpredictable name (H-7: seconds-only STAMP let an attacker pre-plant the
-# export symlink). Opened exactly once, exclusively: noclobber makes > fail
-# when the file already exists, so a planted path aborts instead of being
-# followed — there is no create-then-reopen window to race.
-EXPORT="$BACKUP_DIR/journal-$SCOPE-$STAMP-$$-$RANDOM.export"
-set -C
-if ! exec {EXPORT_FD}>"$EXPORT" 2>/dev/null; then
-    set +C
+# One writer stream for the whole export (both branches): the path is opened
+# exactly once, so a mid-run BackupDir swap cannot redirect later writes.
+# Per-boot export failures ride stderr (stdout IS the export stream) and are
+# re-emitted as WARNs after the pipe — never into the file. PIPESTATUS keeps
+# journalctl's status (left) apart from the writer's (right): export failure
+# still aborts before any vacuum, writer failure (plant/perms) too.
+EXP_ERR=$(mktemp) || { error "Cannot create temp file — aborting before any vacuum."; exit 1; }
+if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
+    {
+        for t in ${ONLY_LIST[@]+"${ONLY_LIST[@]}"}; do
+            bid="${t#boot }"; bid="${bid%% *}"
+            "${JCTL[@]}" -b "$bid" -o export 2>/dev/null || echo "EXPORT_FAILED $t" >&2
+        done
+    } 2>"$EXP_ERR" | run_as_writer sh -c 'set -C; exec cat > "$1"' _ "$EXPORT" 2>/dev/null
+    pl=("${PIPESTATUS[@]}")
+else
+    "${JCTL[@]}" --until "$CUTOFF_STR" -o export 2>/dev/null | run_as_writer sh -c 'set -C; exec cat > "$1"' _ "$EXPORT" 2>/dev/null
+    pl=("${PIPESTATUS[@]}")
+fi
+if [[ "${pl[1]}" -ne 0 ]]; then
     error "Cannot create export $EXPORT exclusively (already exists?) — aborting before any vacuum."
+    rm -f -- "$EXP_ERR"
     exit 1
 fi
-set +C
-# Every write below addresses the held fd (>&$EXPORT_FD), never the path:
-# a mid-run swap of BackupDir cannot redirect these writes.
-if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
-    for t in ${ONLY_LIST[@]+"${ONLY_LIST[@]}"}; do
-        bid="${t#boot }"; bid="${bid%% *}"
-        "${JCTL[@]}" -b "$bid" -o export >&$EXPORT_FD 2>/dev/null || \
-            warn "Export of $t failed — continuing with the remaining selection."
-    done
-else
-    if ! "${JCTL[@]}" --until "$CUTOFF_STR" -o export >&$EXPORT_FD 2>/dev/null; then
-        error "Pre-vacuum export failed — aborting before any vacuum."
-        rm -f -- "$EXPORT"
-        exit 1
-    fi
+if [[ "$ONLY_ACTIVE" -eq 0 && "${pl[0]}" -ne 0 ]]; then
+    error "Pre-vacuum export failed — aborting before any vacuum."
+    rm -f -- "$EXPORT" "$EXP_ERR"
+    exit 1
 fi
+while IFS= read -r ef || [[ -n "$ef" ]]; do
+    [[ "$ef" == EXPORT_FAILED* ]] && warn "Export of ${ef#EXPORT_FAILED } failed — continuing with the remaining selection."
+done < "$EXP_ERR"
+rm -f -- "$EXP_ERR"
 # An empty export is legitimate (nothing in scope to preserve) but must never
 # look like a silent failure: say so explicitly.
-if [[ ! -s /dev/fd/$EXPORT_FD ]]; then
+if [[ ! -s "$EXPORT" ]]; then
     warn "Pre-vacuum export is empty — no entries in scope exist to preserve."
 fi
-exec {EXPORT_FD}>&-
 
 VAC_ARGS=(--vacuum-time="$VTIME")
 [[ -n "$VSIZE" ]] && VAC_ARGS+=(--vacuum-size="$VSIZE")
