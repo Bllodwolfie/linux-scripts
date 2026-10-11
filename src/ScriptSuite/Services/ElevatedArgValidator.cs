@@ -149,6 +149,19 @@ public static class ElevatedArgValidator
                 $"Config file '{path}' is outside the caller's scriptsuite config dir — refusing (G-5 confused deputy).");
     }
 
+    /// <summary>True when dir EQUALS baseDir or lies strictly beneath it,
+    /// compared at component boundaries — never by raw string prefix, so
+    /// "/run/user/1000x" is NOT beneath "/run/user/1000" and the base dir
+    /// itself always matches (a trailing-separator StartsWith misses it).
+    /// Internal for the Stage 4 truth table (same assembly).</summary>
+    internal static bool IsSameOrBeneath(string dir, string baseDir)
+    {
+        string d = dir.TrimEnd(Path.DirectorySeparatorChar);
+        string b = baseDir.TrimEnd(Path.DirectorySeparatorChar);
+        return d.Equals(b, StringComparison.Ordinal)
+            || d.StartsWith(b + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+    }
+
     private static void ValidateOutputPath(string path, ElevatedCaller caller, string role)
     {
         if (!Path.IsPathRooted(path))
@@ -168,10 +181,9 @@ public static class ElevatedArgValidator
         if (NativeLib.IsSymlink(dir))
             throw new InvalidOperationException($"Elevated {role} directory '{dir}' is a symlink — refusing.");
         string? realDir = NativeLib.RealPath(dir);
-        string runUser = $"/run/user/{caller.Uid}{Path.DirectorySeparatorChar}";
-        string tmp = Path.GetTempPath(); // /tmp/ fallback when XDG_RUNTIME_DIR is unset
-        if (realDir is null || (!realDir.StartsWith(runUser, StringComparison.Ordinal)
-            && !realDir.StartsWith(tmp.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+        string runUserDir = $"/run/user/{caller.Uid}";
+        string tmpDir = Path.GetTempPath(); // /tmp/ fallback when XDG_RUNTIME_DIR is unset
+        if (realDir is null || (!IsSameOrBeneath(realDir, runUserDir) && !IsSameOrBeneath(realDir, tmpDir)))
             throw new InvalidOperationException(
                 $"Elevated {role} directory '{dir}' is outside the caller's runtime dirs — refusing.");
         // Owner gate: caller-owned normally; the sticky system temp dir is
@@ -179,7 +191,7 @@ public static class ElevatedArgValidator
         // the GUID name still defeat plants there).
         uint? owner = NativeLib.StatOwner(realDir)?.Uid;
         bool isTempRoot = string.Equals(realDir.TrimEnd(Path.DirectorySeparatorChar),
-            tmp.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal);
+            tmpDir.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal);
         if (owner != caller.Uid && !(isTempRoot && owner == 0))
             throw new InvalidOperationException(
                 $"Elevated {role} directory '{dir}' is not owned by the calling user — refusing.");
