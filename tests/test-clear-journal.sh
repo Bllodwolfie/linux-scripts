@@ -193,3 +193,137 @@ CFG_BADUID=$(make_config ClearJournalBadUid '{"Scope":"user","VacuumTime":"7d","
 HOME=/root PKEXEC_UID=60000 run_case ClearJournal --config-path "$CFG_BADUID" --dry-run
 assert_eq "tier-baduid-exit" "1" "$T_RC"
 assert_contains "tier-baduid-reason" "$(cat "$T_OUT")" "Cannot resolve home"
+
+# VacuumTime normalization (21:04 follow-up): bare numbers are days for the
+# preview/export math but SECONDS for journalctl --vacuum-time — the vacuum
+# must receive the normalized "<N> days" form. Stub journalctl answers
+# list-boots (12 fake 2020 boots) and records vacuum argv; stub setpriv is
+# print-only (no files). Retention labels are asserted on the dry-run
+# SUMMARY line (robust whatever the Clear/Skip mix is).
+export JSTUB_SETPRIV_EXEC=0 JSTUB_SLOW=0 JSTUB_EXPORT_RC=0
+VTLOG="$T_SCRATCH/vt-vacuum.log"
+
+vt_dry() { # cfg -> T_OUT; dry-run with stub boots
+    PATH="$STUBBIN:$PATH" run_case ClearJournal --config-path "$1" --dry-run
+}
+vt_real() { # cfg -> T_OUT; stubbed real run (vacuum recorded, nothing touched)
+    : > "$VTLOG"; export JSTUB_VACLOG="$VTLOG"
+    PATH="$STUBBIN:$PATH" run_case ClearJournal --config-path "$1"
+}
+vt_cfg() { # name vacuumtime -> path
+    make_config "VT$1" '{"Scope":"user","VacuumTime":"'"$2"'","VacuumSize":"","BackupDir":"'"$T_SCRATCH"'/vt-bk"}'
+}
+
+# (a) bare "365": summary says days + WARNs every run.
+C365=$(vt_cfg Bare365 "365")
+vt_dry "$C365"
+assert_contains "vt-bare-preview-days" "$(cat "$T_OUT")" "older than 365 days"
+assert_contains "vt-bare-warn" "$(cat "$T_OUT")" "no unit"
+# (b) vacuum receives the normalized form, not the bare number.
+vt_real "$C365"
+assert_contains "vt-bare-argv" "$(cat "$VTLOG")" "--vacuum-time=365 days"
+# (c) long names keep working (2weeks already agreed; 1month must use
+# journalctl's 30.44-day month, not the script's old 30 — see table).
+C2W=$(vt_cfg W2 "2weeks")
+vt_dry "$C2W"
+assert_contains "vt-2weeks-summary" "$(cat "$T_OUT")" "older than 2weeks"
+assert_no_ere "vt-2weeks-no-fallback" "$T_OUT" "using default"
+C1M=$(vt_cfg M1 "1month")
+vt_real "$C1M"
+assert_contains "vt-1month-passthrough" "$(cat "$VTLOG")" "--vacuum-time=1month"
+# (d) zero/negative/garbage/huge/empty rejected loudly with 7-day fallback.
+for spec in "Z0:0" "Z0D:0d" "NEG:-5" "ABC:abc" "PARSEC:7 parsecs" "HUGE:101y"; do
+    tag="${spec%%:*}"; val="${spec#*:}"
+    C=$(vt_cfg "$tag" "$val")
+    vt_dry "$C"
+    assert_contains "vt-$tag-warn" "$(cat "$T_OUT")" "default 7 days"
+    assert_contains "vt-$tag-math" "$(cat "$T_OUT")" "older than 7 days"
+done
+CEMPTY=$(make_config VTEMPTY '{"Scope":"user","VacuumTime":"","VacuumSize":"","BackupDir":"'"$T_SCRATCH"'/vt-bk"}')
+vt_dry "$CEMPTY"
+assert_contains "vt-empty-warn" "$(cat "$T_OUT")" "default 7 days"
+# VacuumSize: bare = bytes (stated in the rule line), garbage = WARN + no cap.
+CSZ=$(make_config VTSZ '{"Scope":"user","VacuumTime":"7d","VacuumSize":"500","BackupDir":"'"$T_SCRATCH"'/vt-bk"}')
+vt_dry "$CSZ"
+assert_contains "vt-size-bytes" "$(cat "$T_OUT")" "size cap 500 bytes"
+CSZM=$(make_config VTSZM '{"Scope":"user","VacuumTime":"7d","VacuumSize":"500M","BackupDir":"'"$T_SCRATCH"'/vt-bk"}')
+vt_dry "$CSZM"
+assert_contains "vt-size-mega" "$(cat "$T_OUT")" "size cap 500M"
+CSZB=$(make_config VTSZB '{"Scope":"user","VacuumTime":"7d","VacuumSize":"bogus","BackupDir":"'"$T_SCRATCH"'/vt-bk"}')
+vt_dry "$CSZB"
+assert_contains "vt-size-warn" "$(cat "$T_OUT")" "VacuumSize"
+assert_no_ere "vt-size-nocap" "$T_OUT" "size cap"
+# Rule line present on both preview and real runs.
+assert_contains "vt-rule-dry" "$(cat "$T_OUT")" "Rule: keep entries newer than"
+vt_real "$CSZM"
+assert_contains "vt-rule-real" "$(cat "$T_OUT")" "Rule: keep entries newer than 7d"
+
+# (f) 25-value consistency: preview/export cutoff == vacuum semantics.
+# Cutoff date parsed from Clear details when present (that string IS the
+# export --until); otherwise the summary retention label is mapped back to
+# seconds. Vacuum arg mapped via journalctl's DOCUMENTED units — notably a
+# BARE number is seconds for journalctl (the 21:04 bug), so pre-fix bare
+# values mismatch here by design. Tolerance 30s.
+vt_secs() { # vacuum-time arg -> seconds (journal truth: bare=s; month=30.44d; year=365.25d)
+    LC_ALL=C awk -v a="$1" 'BEGIN{
+        n=a; sub(/[ \t]*[A-Za-z]*$/, "", n); u=a; sub(/^[^A-Za-z]*/, "", u); gsub(/[ \t]/, "", u);
+        if (u=="") f=1; else if (u~/^(s|sec|seconds?)$/) f=1;
+        else if (u~/^(m|min|minutes?)$/) f=60; else if (u~/^(h|hr|hours?)$/) f=3600;
+        else if (u~/^(d|days?)$/) f=86400; else if (u~/^(w|weeks?)$/) f=604800;
+        else if (u~/^(months?|M)$/) f=2630016; else if (u~/^(y|years?)$/) f=31557600; else f=-1;
+        printf "%.0f", n*f }'
+}
+vt_label_secs() { # retention label from summary ("365 days","7d","2weeks") -> seconds; -1 unknown
+    vt_secs "$1"
+}
+VT_NOW=$(date +%s)
+VT_PASS=0; VT_FAIL=0
+while IFS='|' read -r val _; do
+    [[ -z "$val" ]] && continue
+    C=$(make_config "VTT$VT_PASS-$VT_FAIL" '{"Scope":"user","VacuumTime":"'"$val"'","VacuumSize":"","BackupDir":"'"$T_SCRATCH"'/vt-bk"}')
+    vt_dry "$C"
+    CUT=$(grep -o -m1 'entries before [0-9-]* [0-9:]*' "$T_OUT" | sed 's/entries before //')
+    if [[ -n "$CUT" ]]; then
+        OBS_EP=$(date -d "$CUT" +%s 2>/dev/null || echo 0)
+        OBS_AGE=$(( VT_NOW - OBS_EP ))
+    else
+        LAB=$(grep -o -m1 'older than .* would be' "$T_OUT" | sed -e 's/older than //' -e 's/ would be//')
+        OBS_AGE=$(vt_label_secs "$LAB")
+    fi
+    vt_real "$C"
+    VARG=$(sed -n 's/.*--vacuum-time=//p' "$VTLOG" | head -n 1)
+    VSEC=$(vt_secs "$VARG")
+    if [[ "$OBS_AGE" -gt 0 && "$VSEC" -gt 0 ]] && LC_ALL=C awk -v a="$OBS_AGE" -v v="$VSEC" 'BEGIN{exit !((a-v<30 && v-a<30))}'; then
+        VT_PASS=$(( VT_PASS + 1 ))
+    else
+        VT_FAIL=$(( VT_FAIL + 1 )); printf 'FAIL vt-table [%s] observed=%s vac=%s\n' "$val" "${CUT:-label:$LAB}" "$VARG"
+    fi
+done <<'VALUES'
+7d|
+365|
+2weeks|
+1month|
+1year|
+30m|
+90s|
+1.5h|
+24h|
+1w|
+10 days|
+2 days|
+48h|
+6 months|
+3 years|
+12h|
+45s|
+5|
+1|
+100y|
+101y|
+0|
+0d|
+-5|
+abc|
+VALUES
+assert_eq "vt-table-fails" "0" "$VT_FAIL"
+printf 'PASS vt-table-passed (%d values)\n' "$VT_PASS"

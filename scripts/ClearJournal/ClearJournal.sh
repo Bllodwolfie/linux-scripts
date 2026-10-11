@@ -72,7 +72,15 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
         warn "ClearJournal config is corrupt or unreadable at $CONFIG_PATH — using defaults (Scope=system, VacuumTime=7d). Check or reset the config via Settings."
     else
         SCOPE=$(cfg_str "$CONFIG_PATH" "Scope" "system")
-        VTIME=$(cfg_str "$CONFIG_PATH" "VacuumTime" "7d")
+        VTIME=$(cfg_str "$CONFIG_PATH" "VacuumTime" "")
+        # Present-but-empty is not the silent-default case (missing key):
+        # say so loudly, then fall back like any other invalid value.
+        if [[ -z "$VTIME" ]]; then
+            if jq -e --arg k "VacuumTime" 'has($k)' "$CONFIG_PATH" >/dev/null 2>&1; then
+                warn "VacuumTime is empty — using default 7 days."
+            fi
+            VTIME="7 days"
+        fi
         VSIZE=$(cfg_str "$CONFIG_PATH" "VacuumSize" "")
         BACKUP_DIR=$(cfg_str "$CONFIG_PATH" "BackupDir" "$CALLER_HOME/Documents/Script_Logs/JournalBackups")
     fi
@@ -120,19 +128,29 @@ if [[ "$SCOPE" != "user" && "$SCOPE" != "system" ]]; then
     SCOPE="system"
 fi
 
-# VacuumTime -> retention days (float). Units d/w/m/y/h accepted; anything
-# else warns + falls back. The RAW string goes to journalctl (it parses the
-# same units natively); the day count only classifies boots for preview.
+# VacuumTime -> retention days (float). Unit table mirrors journalctl
+# --vacuum-time (systemd.time) EXACTLY — including month=30.44d and
+# year=365.25d — so the preview/export math and the vacuum agree on every
+# value journalctl accepts. Bare numbers are days here (normalized + warned
+# at the call site; journalctl would read seconds). Two deliberate
+# departures, both loud: capital M is months for journalctl (lowercase m is
+# minutes — checked before folding case); sub-second units below ms are
+# rejected (vacuum granularity).
 parse_days() { # raw default -> prints days
     local raw="$1" def="$2" num unit
     if [[ "$raw" =~ ^([0-9]+(\.[0-9]+)?)[[:space:]]*([a-zA-Z]*)$ ]]; then
-        num="${BASH_REMATCH[1]}"; unit="${BASH_REMATCH[3],,}"
+        num="${BASH_REMATCH[1]}"; unit="${BASH_REMATCH[3]}"
+        if [[ "$unit" == "M" ]]; then unit="month"; else unit="${unit,,}"; fi
         case "$unit" in
             ""|d|day|days) LC_ALL=C awk -v n="$num" 'BEGIN{print n}'; return 0 ;;
-            h|hour|hours) LC_ALL=C awk -v n="$num" 'BEGIN{print n/24}'; return 0 ;;
+            us|usec) LC_ALL=C awk -v n="$num" 'BEGIN{print n/86400000000}'; return 0 ;;
+            ms|msec) LC_ALL=C awk -v n="$num" 'BEGIN{print n/86400000}'; return 0 ;;
+            s|sec|second|seconds) LC_ALL=C awk -v n="$num" 'BEGIN{print n/86400}'; return 0 ;;
+            m|min|minute|minutes) LC_ALL=C awk -v n="$num" 'BEGIN{print n/1440}'; return 0 ;;
+            h|hr|hour|hours) LC_ALL=C awk -v n="$num" 'BEGIN{print n/24}'; return 0 ;;
             w|week|weeks) LC_ALL=C awk -v n="$num" 'BEGIN{print n*7}'; return 0 ;;
-            m|month|months) LC_ALL=C awk -v n="$num" 'BEGIN{print n*30}'; return 0 ;;
-            y|year|years) LC_ALL=C awk -v n="$num" 'BEGIN{print n*365}'; return 0 ;;
+            month|months) LC_ALL=C awk -v n="$num" 'BEGIN{print n*30.44}'; return 0 ;;
+            y|year|years) LC_ALL=C awk -v n="$num" 'BEGIN{print n*365.25}'; return 0 ;;
         esac
     fi
     printf '%s' "$def"; return 1
@@ -140,12 +158,37 @@ parse_days() { # raw default -> prints days
 RET_DAYS=""
 if ! RET_DAYS=$(parse_days "$VTIME" "7"); then
     RET_DAYS="7"
-    warn "VacuumTime '$VTIME' is invalid — using default 7d."
-    VTIME="7d"
+    warn "VacuumTime '$VTIME' is invalid — using default 7 days."
+    VTIME="7 days"
+fi
+# Bare numbers are days for the preview/export math but seconds for
+# journalctl: normalize to an explicit unit (warn EVERY run) so the vacuum
+# receives exactly what the preview computed.
+VTIME_BARE_NOTE=""
+if [[ "$VTIME" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    warn "VacuumTime '$VTIME' has no unit — reading as $VTIME days."
+    VTIME_BARE_NOTE=" (bare number read as days)"
+    VTIME="$VTIME days"
+fi
+# Zero / absurd retentions never reach journalctl: --vacuum-time=0 lifts the
+# time limit silently, and far-future values are almost surely typos.
+if ! LC_ALL=C awk -v d="$RET_DAYS" 'BEGIN{exit !(d > 0 && d <= 36525)}'; then
+    warn "VacuumTime '$VTIME' is out of range (need more than 0 days, at most 100 years) — using default 7 days."
+    RET_DAYS="7"
+    VTIME="7 days"
+    VTIME_BARE_NOTE=""
 fi
 if [[ -n "$VSIZE" && ! "$VSIZE" =~ ^[0-9]+[KMGT]?$ ]]; then
     warn "VacuumSize '$VSIZE' is invalid (want e.g. 500M) — skipping size vacuum."
     VSIZE=""
+fi
+# Explicit rule line, derived from the SAME normalized values the vacuum
+# receives: bare VacuumTime was rewritten to "<N> days" above, and a bare
+# VacuumSize is bytes in both worlds (journalctl suffixes are base-1024).
+RULE_LINE="Rule: keep entries newer than $VTIME$VTIME_BARE_NOTE"
+if [[ -n "$VSIZE" ]]; then
+    if [[ "$VSIZE" =~ ^[0-9]+$ ]]; then RULE_LINE+="; size cap $VSIZE bytes"
+    else RULE_LINE+="; size cap $VSIZE"; fi
 fi
 if [[ -z "$VTIME" && -z "$VSIZE" ]]; then
     error "No retention set (VacuumTime and VacuumSize both empty) — nothing to do."
@@ -230,6 +273,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
         fi
     done
     printf '%s\n' "Journal dry-run: $del_n boot(s) older than $VTIME would be vacuumed (disk usage: $DU_BEFORE)."
+    printf '%s\n' "$RULE_LINE; vacuum would delete older archived journals."
     exit 0
 fi
 
@@ -330,4 +374,5 @@ fi
 
 DU_AFTER=$(disk_usage)
 printf '%s\n' "Journal cleanup: vacuumed to $VTIME ($DU_BEFORE → $DU_AFTER)."
+printf '%s\n' "$RULE_LINE; vacuum deleted older archived journals."
 exit 0
