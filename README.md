@@ -123,6 +123,7 @@ Contextual `?` buttons appear in the dashboard header (overview), each script's 
 - **Unsigned, un-sandboxed:** the `.deb` is unsigned (no SecureBoot/MOK story yet) and the app runs unconfined — scripts act with your user's full rights (plus polkit for ClearJournal). Review `scripts/` before running.
 - **Intentional divergences from windows-scripts** (not bugs):
   - `RestorePoint` dropped (no System Restore equivalent); `EmptyRecycleBin` → `EmptyTrash` (XDG Trash); `ClearEventLogs` → `ClearJournal` (journald export + vacuum).
+  - `ClearJournal`'s `VacuumTime`/`VacuumSize` retention fields are Linux-only: Windows `ClearEventLogs` has no retention concept (it clears every enabled non-empty log backup-first), because journald vacuum is retention-global while `wevtutil` clears per-log. Bare `VacuumTime` numbers are read as days (journalctl alone would read seconds); zero/negative/absurd values fall back to 7 days loudly.
   - Run window has a real **Cancel** (Windows has none); window-close mid-run is refused (Windows left it open).
   - History has a **filter** (Windows v2.0.0 has none).
   - **Admin scripts excluded from Run All without consent** (Windows runs them with per-leg UAC).
