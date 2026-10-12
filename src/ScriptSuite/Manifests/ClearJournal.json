@@ -21,8 +21,8 @@
       "type": "string",
       "unit": "",
       "default": "7d",
-      "helpText": "Journal entries older than this are exported, then vacuumed (e.g. 7d, 2weeks, 1month).",
-      "helpDetail": "Passed to journalctl --vacuum-time (same units). The same value classifies boots in the dry-run preview. Empty disables time vacuum; at least one of VacuumTime/VacuumSize must be set."
+      "helpText": "Journal entries older than this are exported, then vacuumed. Use a number with a unit: 7d, 2 weeks, 365 days (a bare number is read as days).",
+      "helpDetail": "Normalized to an explicit unit before journalctl --vacuum-time, so preview and vacuum always agree (a bare number becomes '<N> days' — journalctl alone would read seconds). The same value classifies boots in the dry-run preview. Invalid or out-of-range values fall back to 7 days with a warning."
     },
     {
       "name": "VacuumSize",

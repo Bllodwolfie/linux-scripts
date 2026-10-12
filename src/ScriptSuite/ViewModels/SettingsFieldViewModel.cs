@@ -88,6 +88,7 @@ public partial class SettingsFieldViewModel : ViewModelBase
             _textValue = value;
             _textPending = true;
             OnPropertyChanged();
+            RefreshVacuumNote();
             ArmDebounce();
         }
     }
@@ -320,6 +321,15 @@ public partial class SettingsFieldViewModel : ViewModelBase
         if (_textPending)
         {
             _textPending = false;
+            // Blocking validation for VacuumTime (mirrors MinAgeDays): values
+            // the script would reject never reach disk.
+            if (Field.Name == "VacuumTime" && !VacuumTimeFormat.TryGetDays(_textValue, out _))
+            {
+                ValidationMessage = "Use a number with a unit, e.g. 7d, 2 weeks, 365 days.";
+                _pendingTextPrior = null;
+                return;
+            }
+            ValidationMessage = "";
             var prior = _pendingTextPrior ?? _textValue;
             _pendingTextPrior = null;
             Commit(JsonValue.Create(prior), JsonValue.Create(_textValue));
@@ -368,13 +378,28 @@ public partial class SettingsFieldViewModel : ViewModelBase
         OnPropertyChanged(nameof(IntText));
         OnPropertyChanged(nameof(BoolValue));
         PathWarning = ValidatePath();
+        RefreshVacuumNote();
     }
 
     private void Commit(JsonNode? prior, JsonNode? next)
     {
         PathWarning = ValidatePath();
+        RefreshVacuumNote();
         _commit(this, prior, next);
         ShowSaved();
+    }
+
+    /// <summary>Inline note for a bare-number VacuumTime ("365" is read as
+    /// 365 days — journalctl alone would read seconds). Non-blocking, shown
+    /// in the PathWarning slot (free for non-path fields); cleared whenever
+    /// the value stops being a bare number.</summary>
+    private void RefreshVacuumNote()
+    {
+        if (Field.Name != "VacuumTime" || Field.Type != "string") return;
+        PathWarning = VacuumTimeFormat.IsBareNumber(_textValue)
+            && VacuumTimeFormat.TryGetDays(_textValue, out _)
+            ? $"'{_textValue}' has no unit — will be read as {_textValue} days."
+            : "";
     }
 
     /// <summary>Warn-but-save check for path fields: expands the value and

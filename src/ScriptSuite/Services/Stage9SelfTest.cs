@@ -73,6 +73,44 @@ public static class Stage9SelfTest
             trashForm.Undo();
             Check(minAge.IntText == "0", "9 int undo");
 
+            // --- VacuumTime validation + bare-number note (21:04 follow-up):
+            // --- the UI validates exactly what the script honors ---
+            Check(VacuumTimeFormat.TryGetDays("365", out var d365) && d365 == 365
+                && VacuumTimeFormat.TryGetDays("2weeks", out var d2w) && d2w == 14
+                && VacuumTimeFormat.TryGetDays("1month", out var d1m) && Math.Abs(d1m - 30.44) < 0.001
+                && VacuumTimeFormat.TryGetDays("1year", out var d1y) && Math.Abs(d1y - 365.25) < 0.001
+                && VacuumTimeFormat.TryGetDays("30m", out var d30m) && Math.Abs(d30m - 30.0 / 1440) < 1e-9
+                && VacuumTimeFormat.TryGetDays("2M", out var d2M) && Math.Abs(d2M - 60.88) < 0.001
+                && VacuumTimeFormat.TryGetDays("100y", out var d100y) && d100y == 36525.0
+                && !VacuumTimeFormat.TryGetDays("0", out _)
+                && !VacuumTimeFormat.TryGetDays("0d", out _)
+                && !VacuumTimeFormat.TryGetDays("-5", out _)
+                && !VacuumTimeFormat.TryGetDays("abc", out _)
+                && !VacuumTimeFormat.TryGetDays("7 parsecs", out _)
+                && !VacuumTimeFormat.TryGetDays("", out _)
+                && !VacuumTimeFormat.TryGetDays(null, out _)
+                && !VacuumTimeFormat.TryGetDays("101y", out _)
+                && VacuumTimeFormat.IsBareNumber("365") && !VacuumTimeFormat.IsBareNumber("7d"),
+                "9 vacuumtime table mirrors parse_days");
+            var cjManifest = catalog.Find("ClearJournal")!;
+            var cjForm = new SettingsFormViewModel(cjManifest, config);
+            var vt = cjForm.Fields.First(f => f.Field.Name == "VacuumTime");
+            Check(vt.TextValue == "7d", "9 vacuumtime loads default");
+            vt.TextValue = "365";
+            Check(vt.HasPathWarning && vt.PathWarning.Contains("read as 365 days"), "9 vacuumtime bare note");
+            vt.CommitPending();
+            Check(config.Load("ClearJournal")["VacuumTime"]!.GetValue<string>() == "365",
+                "9 vacuumtime bare saves (script normalizes)");
+            vt.TextValue = "bogus";
+            vt.CommitPending();
+            Check(vt.ValidationMessage.Contains("unit")
+                && config.Load("ClearJournal")["VacuumTime"]!.GetValue<string>() == "365",
+                "9 vacuumtime invalid blocked");
+            vt.TextValue = "30m";
+            vt.CommitPending();
+            Check(config.Load("ClearJournal")["VacuumTime"]!.GetValue<string>() == "30m"
+                && !vt.HasValidationError, "9 vacuumtime minutes saves");
+
             // --- path warn-but-save ---
             form.Fields[0].TextValue = "relative/path";
             form.Fields[0].CommitPending();
