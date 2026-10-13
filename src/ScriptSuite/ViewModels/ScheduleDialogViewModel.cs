@@ -7,7 +7,8 @@ namespace ScriptSuite.ViewModels;
 
 /// <summary>Schedule dialog logic: the Every [N] [Days|Hours|Weeks] at [HH:mm]
 /// model ported from windows-scripts ScheduleWindow. Validation parity:
-/// interval must be an integer 1–365, time must parse as a TimeSpan, admin
+/// interval must be an integer 1–365, time must be strict HH:mm 24h (F-2:
+/// TimeSpan.TryParse accepted "9" as 9 days → silent 00:00), admin
 /// scripts require the risk opt-in. The register/unregister functions default
 /// to the real SystemdScheduleService and are injectable for headless tests.
 /// Admin scripts carry an explicit warning: user timers cannot elevate, so a
@@ -95,7 +96,7 @@ public partial class ScheduleDialogViewModel : ViewModelBase
             ErrorText = "Interval must be a whole number from 1 to 365.";
             return;
         }
-        if (!TimeSpan.TryParse(TimeText.Trim(), out _))
+        if (!SystemdScheduleService.TryParseTimeOfDay(TimeText, out _))
         {
             ErrorText = "Time must look like HH:mm (e.g. 09:00).";
             return;

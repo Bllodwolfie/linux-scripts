@@ -44,6 +44,26 @@ public sealed class SystemdScheduleService
         return sb.Length > 0 ? sb.ToString() : "script";
     }
 
+    private static readonly System.Text.RegularExpressions.Regex StrictTime =
+        new(@"^([01]?\d|2[0-3]):[0-5]\d$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>Strict HH:mm 24h parse (F-2): the ONLY accepted time format,
+    /// shared by the dialog and Register. TimeSpan.TryParse is far too lax —
+    /// "9" parses as 9 DAYS, and hh:mm then formats the days away into a
+    /// silent 00:00 midnight timer. Trims; null/empty rejected.</summary>
+    public static bool TryParseTimeOfDay(string? raw, out TimeSpan time)
+    {
+        time = default;
+        string s = (raw ?? "").Trim();
+        if (!StrictTime.IsMatch(s)) return false;
+        var parts = s.Split(':');
+        if (parts.Length != 2 || !int.TryParse(parts[0], out int h) || !int.TryParse(parts[1], out int m))
+            return false;
+        time = new TimeSpan(h, m, 0);
+        return true;
+    }
+
     private static string BinaryPath =>
         Environment.ProcessPath
         ?? Path.Combine(AppContext.BaseDirectory, "ScriptSuite");
@@ -93,8 +113,10 @@ public sealed class SystemdScheduleService
     {
         try
         {
-            if (!TimeSpan.TryParse(entry.TimeOfDay, out var ts))
-                ts = new TimeSpan(9, 0, 0);
+            // F-2: strict time FIRST (before any file or systemctl touch) —
+            // never a silent 9:00 fallback, never a 00:00 misfire.
+            if (!TryParseTimeOfDay(entry.TimeOfDay, out var ts))
+                return (false, $"TimeOfDay must look like HH:mm (e.g. 09:00), got '{entry.TimeOfDay}'.");
             int interval = entry.Interval < 1 ? 1 : entry.Interval;
             string hhmm = ts.ToString(@"hh\:mm");
 

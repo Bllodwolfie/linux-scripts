@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ScriptSuite.Models;
+using ScriptSuite.ViewModels;
 
 namespace ScriptSuite.Services;
 
@@ -117,12 +118,94 @@ public static class Stage7aSelfTest
             }
             finally { TryDelete(storePath); }
 
+            // --- 5b. F-2: single-digit times must not become 00:00. "9" is a
+            // --- 9-day TimeSpan to TryParse, and hh:mm formats days away. ---
+            {
+                var dlgCat = new ManifestCatalog(AppPaths.ManifestsDir);
+                string dlgSchedPath = Path.Combine(AppPaths.RuntimeRoot,
+                    $"scriptsuite_stage7a_dlg_{Guid.NewGuid():N}.json");
+                string dlgConsPath = Path.Combine(AppPaths.RuntimeRoot,
+                    $"scriptsuite_stage7a_cons_{Guid.NewGuid():N}.json");
+                var dlgSched = new ScheduleStore(dlgSchedPath);
+                var dlgCons = new RiskConsentStore(dlgConsPath);
+                try
+                {
+                    int regCalls = 0;
+                    var dlg = new ScheduleDialogViewModel(dlgCat.Find("TempCleanup")!,
+                        dlgSched, dlgCons,
+                        e => { regCalls++; return (true, null); }, _ => (true, null));
+                    bool? closed = null;
+                    dlg.RequestClose += b => closed = b;
+                    dlg.TimeText = "9";
+                    dlg.Save();
+                    Check(dlg.ErrorText.Contains("HH:mm") && regCalls == 0 && closed is null,
+                        "dialog rejects single-digit time (no register, stays open)");
+                    dlg.TimeText = "9:00";
+                    dlg.Save();
+                    Check(regCalls == 1 && closed == true,
+                        "dialog accepts strict HH:mm");
+                }
+                finally
+                {
+                    TryDelete(dlgSchedPath);
+                    TryDelete(dlgConsPath);
+                }
+            }
+
             // --- 5. SummaryFor variants (pure function) ---
+            // --- 5c. F-2 backend: Register refuses lax times before writing ---
+            // (best-effort cleanup: pre-fix code writes + enables a REAL
+            // timer when the manager is reachable — never strand it).
+            {
+                bool userHasTimer = SystemdScheduleService.TaskExists("TempCleanup");
+                if (userHasTimer)
+                {
+                    lines.Add("SKIP refused-register checks (user owns a TempCleanup timer)");
+                }
+                else
+                {
+                    var badEntry = new ScheduleEntry { ScriptId = "TempCleanup", Unit = "Days", Interval = 1, TimeOfDay = "9" };
+                    var (badOk, badErr) = SystemdScheduleService.Register(badEntry);
+                    try
+                    {
+                        Check(!badOk && badErr is not null && badErr.Contains("HH:mm"),
+                            $"register refuses single-digit time ({badErr ?? "no reason"})");
+                        string badSvc = Path.Combine(SystemdScheduleService.UnitDir, "scriptsuite-TempCleanup.service");
+                        string badTimer = Path.Combine(SystemdScheduleService.UnitDir, "scriptsuite-TempCleanup.timer");
+                        Check(!File.Exists(badSvc) && !File.Exists(badTimer),
+                            "refused register writes no unit files");
+                    }
+                    finally
+                    {
+                        try { SystemdScheduleService.Unregister("TempCleanup"); } catch { }
+                    }
+                }
+            }
             Check(SystemdScheduleService.SummaryFor(new ScheduleEntry { Unit = "Days", Interval = 1, TimeOfDay = "09:00" }) == "Daily at 09:00"
                     && SystemdScheduleService.SummaryFor(new ScheduleEntry { Unit = "Hours", Interval = 3 }) == "Every 3 hours"
                     && SystemdScheduleService.SummaryFor(new ScheduleEntry { Unit = "Weeks", Interval = 2 }) == "Every 2 weeks (from save)"
                     && SystemdScheduleService.SummaryFor(new ScheduleEntry { Unit = "Days", Interval = 2 }) == "Every 2 days (from save)",
                 "SummaryFor covers daily/hourly/multi-day/multi-week wording");
+
+            // --- 5d. F-2 strict HH:mm table ---
+            {
+                bool strictOk =
+                    SystemdScheduleService.TryParseTimeOfDay("09:00", out var t1) && t1 == new TimeSpan(9, 0, 0)
+                    && SystemdScheduleService.TryParseTimeOfDay("9:00", out var t2) && t2 == new TimeSpan(9, 0, 0)
+                    && SystemdScheduleService.TryParseTimeOfDay("00:00", out _)
+                    && SystemdScheduleService.TryParseTimeOfDay("23:59", out _)
+                    && SystemdScheduleService.TryParseTimeOfDay(" 09:00 ", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("9", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("9:00:00", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("24:00", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("12:60", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("abc", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay(null, out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("9:0", out _)
+                    && !SystemdScheduleService.TryParseTimeOfDay("1.02:03:04", out _);
+                Check(strictOk, "strict HH:mm table (single-digit/seconds/day-overflow rejected)");
+            }
 
             // --- 6. direct --scheduled-run (test config, backup/restore user config) ---
             string cfgPath = AppPaths.ConfigPathFor("TempCleanup");
