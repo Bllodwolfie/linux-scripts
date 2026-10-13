@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="700"
         x:Class="ScriptSuite.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Icon="avares://ScriptSuite/Assets/Cat_bobber-dark.png"
+        Icon="/Assets/ScriptSuite.ico"
         Title="Script Suite"
         Background="{DynamicResource Brush.Background.Primary}"
         Foreground="{DynamicResource Brush.Foreground.Primary}">

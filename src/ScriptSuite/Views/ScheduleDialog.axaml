@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="360"
         x:Class="ScriptSuite.Views.ScheduleDialog"
         x:DataType="vm:ScheduleDialogViewModel"
-        Icon="avares://ScriptSuite/Assets/Cat_bobber-dark.png"
+        Icon="/Assets/ScriptSuite.ico"
         Title="{Binding Title}"
         Width="420" Height="440" CanResize="False"
         WindowStartupLocation="CenterOwner"

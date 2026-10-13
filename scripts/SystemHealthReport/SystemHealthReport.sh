@@ -395,6 +395,7 @@ td { padding: 9px 14px; border-bottom: 1px solid var(--surface0); font-size: 16p
 [data-theme="latte"] .intro-cat-latte { display: block; }
 .header .sidebar-toggle, .header .theme-toggle { width: 44px; height: 44px; border-radius: 50%; background: var(--toolbar-bg); border: 2px solid var(--surface0); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .theme-toggle .icon-moon { display: flex; } .theme-toggle .icon-sun { display: none; }
+.theme-toggle svg { width: 22px; height: 22px; }
 [data-theme="latte"] .theme-toggle .icon-moon { display: none; }
 [data-theme="latte"] .theme-toggle .icon-sun { display: flex; }
 .sidebar { position: fixed; top: 0; left: 0; height: 100%; z-index: 9998; width: 220px; background: var(--mantle); border-right: 1px solid var(--surface0); padding: 16px 0 56px; transform: translateX(-100%); transition: transform 0.35s; overflow-y: auto; }
@@ -433,7 +434,7 @@ cat <<EOF
 <h1>System Health Report</h1>
 <div class="subtitle">$(html_escape "$HOST") &middot; $GEN_DATE &middot; Catppuccin $THEME_NAME</div>
 </div>
-<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme"><span class="icon-moon">◐</span><span class="icon-sun">◑</span></button>
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme"><span class="icon-moon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span><span class="icon-sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></span></button>
 </div>
 
 <div class="summary">
