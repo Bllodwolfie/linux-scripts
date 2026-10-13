@@ -3,7 +3,7 @@
         xmlns:vm="using:ScriptSuite.ViewModels"
         x:Class="ScriptSuite.Views.ScheduledHistoryWindow"
         x:DataType="vm:ScheduledHistoryViewModel"
-        Icon="/Assets/Cat_bobber-dark.png"
+        Icon="avares://ScriptSuite/Assets/Cat_bobber-dark.png"
         Title="Scheduled History"
         Width="860" Height="560" MinWidth="560" MinHeight="360"
         Background="{DynamicResource Brush.Background.Primary}"
