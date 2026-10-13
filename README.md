@@ -124,6 +124,7 @@ Contextual `?` buttons appear in the dashboard header (overview), each script's 
 - **Intentional divergences from windows-scripts** (not bugs):
   - `RestorePoint` dropped (no System Restore equivalent); `EmptyRecycleBin` → `EmptyTrash` (XDG Trash); `ClearEventLogs` → `ClearJournal` (journald export + vacuum).
   - `ClearJournal`'s `VacuumTime`/`VacuumSize` retention fields are Linux-only: Windows `ClearEventLogs` has no retention concept (it clears every enabled non-empty log backup-first), because journald vacuum is retention-global while `wevtutil` clears per-log. Bare `VacuumTime` numbers are read as days (journalctl alone would read seconds); zero/negative/absurd values fall back to 7 days loudly.
+  - `DownloadsCleanup` never overwrites on move: a destination clash renames to `name (2)` (`name (3)`, …) with a WARN, keeping both files. Windows `Move-Item` errors on an existing destination instead (no `-Force` in the Windows script) — neither side silently overwrites; Linux keeps both files, Windows keeps the old one and fails the item.
   - Run window has a real **Cancel** (Windows has none); window-close mid-run is refused (Windows left it open).
   - History has a **filter** (Windows v2.0.0 has none).
   - **Admin scripts excluded from Run All without consent** (Windows runs them with per-leg UAC).

@@ -151,6 +151,44 @@ if [[ -n "$INCLUDE_ONLY_FILE" && -f "$INCLUDE_ONLY_FILE" ]]; then
     [[ ${#ONLY_MAP[@]} -gt 0 ]] && ONLY_ACTIVE=1
 fi
 
+# B-1: moves never clobber. claim_name prints the first free basename in a
+# dir (Windows-style "base (2).ext"); claim_for splits a filename first;
+# move_noclobber moves src there with mv -n -T (no-clobber, no-target-dir)
+# in a retry loop, so even a TOCTOU plant between check and move cannot
+# overwrite anything. Prints the final basename; 0 when moved.
+claim_name() { # destdir stem ext
+    local dir="$1" stem="$2" ext="$3" cand n=1
+    cand="$stem$ext"
+    while [[ -e "$dir/$cand" || -L "$dir/$cand" ]]; do
+        n=$(( n + 1 ))
+        [[ "$n" -gt 10000 ]] && return 1
+        cand="$stem ($n)$ext"
+    done
+    printf '%s' "$cand"
+}
+claim_for() { # destdir filename
+    local name="$2" stem ext
+    if [[ "$name" == *.* && "$name" != .* ]]; then stem="${name%.*}"; ext=".${name##*.}"
+    else stem="$name"; ext=""; fi
+    claim_name "$1" "$stem" "$ext"
+}
+move_noclobber() { # src destdir
+    local src="$1" dir="$2" cand tries=0
+    while [[ "$tries" -lt 1000 ]]; do
+        tries=$(( tries + 1 ))
+        cand=$(claim_for "$dir" "$(basename -- "$src")") || return 1
+        if [[ -d "$dir/$cand" && ! -L "$dir/$cand" ]]; then continue; fi
+        if mv -n -T -- "$src" "$dir/$cand" 2>/dev/null \
+            && [[ ! -e "$src" && -f "$dir/$cand" ]]; then
+            printf '%s' "$cand"
+            return 0
+        fi
+        [[ -e "$dir/$cand" || -L "$dir/$cand" ]] && continue
+        return 1
+    done
+    return 1
+}
+
 LOGFILE="$LOGDIR/$LOGFILE_NAME"
 mkdir -p -- "$LOGDIR" 2>/dev/null
 NOW_EPOCH=$(date +%s)
@@ -250,10 +288,20 @@ while IFS= read -r -d '' f; do
                 fi
                 dest=$(expand_user_path "$adv_dest")
                 if [[ "$DRY_RUN" -eq 1 ]]; then
-                    dryrun_item "Move" "$canon" "to $dest [advanced rule]"
+                    final=$(claim_for "$dest" "$name") || final="$name"
+                    if [[ "$final" == "$name" ]]; then
+                        dryrun_item "Move" "$canon" "to $dest [advanced rule]"
+                    else
+                        dryrun_item "Move" "$canon" "to $dest/$final (name taken) [advanced rule]"
+                    fi
                 else
-                    if mkdir -p -- "$dest" 2>/dev/null && mv -f -- "$f" "$dest/" 2>/dev/null; then
-                        write_log "$LOGFILE" "MOVED   : $name -> $dest [advanced rule]"
+                    if mkdir -p -- "$dest" 2>/dev/null && final=$(move_noclobber "$f" "$dest"); then
+                        destdisp="$dest"
+                        if [[ "$final" != "$name" ]]; then
+                            warn "Renamed to avoid overwriting: $name -> $dest/$final [advanced rule]"
+                            destdisp="$dest/$final"
+                        fi
+                        write_log "$LOGFILE" "MOVED   : $name -> $destdisp [advanced rule]"
                     else
                         write_log "$LOGFILE" "ERROR   : Failed to move $name to $dest [advanced rule]"
                     fi
@@ -286,14 +334,25 @@ while IFS= read -r -d '' f; do
         continue
     fi
 
-    # Categories -> move (mkdir -p first, overwrite like Move-Item -Force).
+    # Categories -> move (mkdir -p first, never clobber: clashes rename to
+    # "base (2).ext" with a WARN — Windows Move-Item errors instead, see README).
     if [[ -n "$ext" && -n "${EXT_MAP[$ext]:-}" ]]; then
         dest=$(expand_user_path "${EXT_MAP[$ext]}")
         if [[ "$DRY_RUN" -eq 1 ]]; then
-            dryrun_item "Move" "$canon" "to $dest"
+            final=$(claim_for "$dest" "$name") || final="$name"
+            if [[ "$final" == "$name" ]]; then
+                dryrun_item "Move" "$canon" "to $dest"
+            else
+                dryrun_item "Move" "$canon" "to $dest/$final (name taken)"
+            fi
         else
-            if mkdir -p -- "$dest" 2>/dev/null && mv -f -- "$f" "$dest/" 2>/dev/null; then
-                write_log "$LOGFILE" "MOVED   : $name -> $dest"
+            if mkdir -p -- "$dest" 2>/dev/null && final=$(move_noclobber "$f" "$dest"); then
+                destdisp="$dest"
+                if [[ "$final" != "$name" ]]; then
+                    warn "Renamed to avoid overwriting: $name -> $dest/$final"
+                    destdisp="$dest/$final"
+                fi
+                write_log "$LOGFILE" "MOVED   : $name -> $destdisp"
             else
                 write_log "$LOGFILE" "ERROR   : Failed to move $name to $dest"
             fi
