@@ -71,6 +71,23 @@ public static class Stage8SelfTest
                 Check(res.Logs.Contains("Cancelled by user."), "8a cancel log line");
             }
 
+            // --- C4: a cancelled Run window leaves its reason in the Output
+            // --- pane (10:43 class: banner alone is not enough) ---
+            var cancelCat = new ManifestCatalog(Path.Combine(scratch, "manifests"));
+            var cancelVm = new ScriptRunViewModel(cancelCat.Find("Sleeper")!, fixtureExec, elevation,
+                consents, history, "", direct);
+            var cancelTask = Task.Run(() => cancelVm.LoadAsync());
+            var cancelWatch = DateTime.UtcNow;
+            while (!cancelVm.IsRunning && (DateTime.UtcNow - cancelWatch).TotalSeconds < 10)
+                Thread.Sleep(100);
+            Thread.Sleep(300);
+            cancelVm.Cancel();
+            cancelTask.GetAwaiter().GetResult();
+            Check(cancelVm.CurrentPhase == ScriptRunViewModel.Phase.Finished, "8a cancelled run finishes");
+            Check(cancelVm.StatusText == "Cancelled", "8a cancelled banner");
+            Check(cancelVm.LogLines.Any(l => l.Contains("Cancelled by user.")),
+                "8a cancelled reason in Output pane");
+
             // --- Run window VM: TempCleanup preview + confirm (scratch target only) ---
             Directory.CreateDirectory(Path.Combine(scratch, "tmptarget"));
             File.WriteAllText(Path.Combine(scratch, "tmptarget", "old.tmp"), "old");
@@ -104,6 +121,8 @@ public static class Stage8SelfTest
                 Check(!File.Exists(Path.Combine(scratch, "tmptarget", "old.tmp"))
                     && File.Exists(Path.Combine(scratch, "tmptarget", "fresh.tmp")),
                     "8a real run honored scratch target only");
+                Check(runVm.LogLines.Count(l => l.Contains("Temp cleanup:")) == 1,
+                    "8a result reason appended once (live lines not doubled)");
             }
             else
             {
@@ -154,6 +173,7 @@ public static class Stage8SelfTest
                 adminVm.ConfirmAsync().GetAwaiter().GetResult();
             }
             Check(adminVm.StatusText.Contains("I understand the risks"), "8a admin blocked without consent");
+            Check(adminVm.LogLines.Any(l => l.Contains("I understand the risks")), "8a refusal reason in Output pane");
             Check(history.GetRecent(100).Count == hAdmin, "8a blocked admin writes no history");
 
             // --- History VM ---

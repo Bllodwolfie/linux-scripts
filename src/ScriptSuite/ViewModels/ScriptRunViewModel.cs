@@ -222,6 +222,7 @@ public partial class ScriptRunViewModel : ViewModelBase
             CurrentPhase = Phase.Finished;
             PreviewVisible = false;
             StatusText = "Check 'I understand the risks' on the dashboard card first.";
+            _marshal(() => LogLines.Add(StatusText));
             return;
         }
 
@@ -270,6 +271,17 @@ public partial class ScriptRunViewModel : ViewModelBase
             RunOutcome.Cancelled => "Cancelled",
             _ => "Done",
         };
+        // C4: banner AND reason for EVERY outcome. The result's own log lines
+        // join the Output pane (live-streamed lines are already there — skip
+        // exact duplicates so nothing doubles). Before this, returned results
+        // (Cancelled/refusals/transport failures) reached History only, and a
+        // run like the 10:43 pkexec-127 Cancelled left the Output pane empty.
+        _marshal(() =>
+        {
+            foreach (var line in result.Logs)
+                if (!LogLines.Contains(line))
+                    LogLines.Add(line);
+        });
         CurrentPhase = Phase.Finished;
         OnPropertyChanged(nameof(IsRunning));
         CancelVisible = false;
