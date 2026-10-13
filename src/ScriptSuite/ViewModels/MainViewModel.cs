@@ -33,6 +33,10 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _isSelfTestRunning;
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private bool _runAllEnabled;
+    /// <summary>Non-empty when the run-history database fell back to a
+    /// temporary copy (E6): the dashboard works, but history will not
+    /// persist. Surfaced for a future banner; asserted headless.</summary>
+    [ObservableProperty] private string _historyWarning = "";
 
     /// <summary>Header theme toggle state/tooltip (ThemeManager is the source
     /// of truth; refreshed on toggle and at construction). The toggle is
@@ -93,6 +97,29 @@ public partial class MainViewModel : ViewModelBase
     /// <summary>Set by the view: shows scheduled-run history. Null headless.</summary>
     public Func<ScheduledHistoryViewModel, Task>? ShowScheduledHistory { get; set; }
 
+    /// <summary>Production history open that never kills startup (E6): a
+    /// corrupt/unwritable history.db falls back to a temp database and sets
+    /// HistoryWarning. Throws only when even the fallback is unusable.</summary>
+    private RunHistoryStore OpenHistoryResilient()
+    {
+        try
+        {
+            var (store, warning) = RunHistoryStore.OpenResilient(AppPaths.HistoryDbPath);
+            if (warning is not null)
+            {
+                HistoryWarning = warning;
+                Console.Error.WriteLine("Dashboard: " + warning);
+            }
+            return store;
+        }
+        catch (Exception ex)
+        {
+            HistoryWarning = "Run history unavailable: " + ex.Message;
+            Console.Error.WriteLine("Dashboard: " + HistoryWarning);
+            throw;
+        }
+    }
+
     public MainViewModel(
         ManifestCatalog? catalog = null,
         BashScriptExecutor? executor = null,
@@ -111,7 +138,7 @@ public partial class MainViewModel : ViewModelBase
         _executor = executor ?? new BashScriptExecutor(_catalog);
         _consents = consents ?? new RiskConsentStore(AppPaths.RiskConsentsPath);
         _elevation = elevation ?? new PolkitElevationService(_catalog, _consents);
-        _history = history ?? new RunHistoryStore(AppPaths.HistoryDbPath);
+        _history = history ?? OpenHistoryResilient();
         Schedules = schedules ?? new ScheduleStore(AppPaths.SchedulesPath);
         Consents = _consents;
         _configPathFor = configPathFor ?? AppPaths.ConfigPathFor;

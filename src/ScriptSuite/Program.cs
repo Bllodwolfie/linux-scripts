@@ -210,7 +210,37 @@ sealed class Program
     private static int RunScheduled(string scriptId)
     {
         var startedAt = DateTime.Now;
-        var history = new RunHistoryStore(AppPaths.HistoryDbPath);
+        // E6: the store opens resiliently (corrupt/unwritable history.db
+        // degrades to a temp database + warning, never a startup crash) and
+        // every later write goes through Record (a dead store must not kill
+        // a scheduled job either — e.g. a db that turned read-only after a
+        // successful open).
+        RunHistoryStore? history;
+        try
+        {
+            var (store, warning) = RunHistoryStore.OpenResilient(AppPaths.HistoryDbPath);
+            history = store;
+            if (warning is not null)
+                Console.Error.WriteLine($"Scheduled run {scriptId}: history unavailable — {warning}");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Scheduled run {scriptId}: history unavailable ({ex.Message}) — continuing without recording.");
+            history = null;
+        }
+        void Record(string outcome, string summary)
+        {
+            if (history is null) return;
+            try
+            {
+                history.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now,
+                    outcome, summary, "timer");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Scheduled run {scriptId}: history unavailable (cannot record outcome: {ex.Message}).");
+            }
+        }
         int lockFd = -1;
         try
         {
@@ -220,8 +250,7 @@ sealed class Program
                 throw new System.IO.IOException("Cannot open scheduled lock file.");
             if (flock(lockFd, LOCK_EX | LOCK_NB) != 0)
             {
-                history.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now,
-                    "SkippedBusy", "Skipped — app was busy.", "timer");
+                Record("SkippedBusy", "Skipped — app was busy.");
                 Console.WriteLine($"Scheduled run {scriptId}: skipped — app was busy.");
                 return 0;
             }
@@ -229,8 +258,7 @@ sealed class Program
             var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
             if (catalog.Find(scriptId) is null)
             {
-                history.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now,
-                    "Failed", $"Unknown script id: {scriptId}.", "timer");
+                Record("Failed", $"Unknown script id: {scriptId}.");
                 Console.Error.WriteLine($"Scheduled run: unknown script id '{scriptId}'.");
                 return 1;
             }
@@ -244,20 +272,14 @@ sealed class Program
                 RunOutcome.Cancelled => "Cancelled",
                 _ => "Failed",
             };
-            history.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now,
-                outcome, RunHistoryStore.BuildSummary(result.Logs), "timer");
+            Record(outcome, RunHistoryStore.BuildSummary(result.Logs));
             foreach (var line in result.Logs)
                 Console.WriteLine(line);
             return result.Outcome == RunOutcome.Failed ? 1 : 0;
         }
         catch (Exception ex)
         {
-            try
-            {
-                history.InsertScheduled(scriptId, startedAt, startedAt, DateTime.Now,
-                    "Failed", "Scheduled runner error: " + ex.Message, "timer");
-            }
-            catch { }
+            Record("Failed", "Scheduled runner error: " + ex.Message);
             Console.Error.WriteLine($"Scheduled run {scriptId} failed: {ex.Message}");
             return 1;
         }

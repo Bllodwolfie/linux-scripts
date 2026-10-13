@@ -49,6 +49,25 @@ public static class Stage8SelfTest
             Check(sel.IsChecked, "8a selection checked by default");
             Check(sel.ActionDisplay == "Delete", "8a selection action display");
 
+            // --- E6: history opens resiliently (bad path / corrupt file ->
+            // --- temp fallback + warning, store stays functional) ---
+            string blocker = Path.Combine(scratch, "blocker");
+            File.WriteAllText(blocker, "x");
+            var (fbStore, fbWarn) = RunHistoryStore.OpenResilient(Path.Combine(blocker, "history.db"));
+            Check(fbWarn is not null && fbWarn.Contains("unavailable"),
+                "8a resilient store warns on unwritable path");
+            fbStore.Insert("TempCleanup", DateTime.Now, DateTime.Now, RunOutcome.Success, "probe");
+            Check(fbStore.GetLatestByScript().TryGetValue("TempCleanup", out var fbRow)
+                && fbRow.Summary == "probe", "8a fallback store functional");
+            string corruptDb = Path.Combine(scratch, "corrupt.db");
+            File.WriteAllText(corruptDb, "NOT-A-SQLITE-FILE");
+            var (cStore, cWarn) = RunHistoryStore.OpenResilient(corruptDb);
+            Check(cWarn is not null && cWarn.Contains("unavailable"),
+                "8a resilient store warns on corrupt file");
+            // Same-process fallback file is shared by design: still functional.
+            cStore.Insert("EmptyTrash", DateTime.Now, DateTime.Now, RunOutcome.Failed, "probe2");
+            Check(cStore.GetLatestByScript().ContainsKey("EmptyTrash"), "8a corrupt-file fallback functional");
+
             // --- C5: crash recorder writes full traces locally (never sent) ---
             string crashPath;
             try

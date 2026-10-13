@@ -14,11 +14,40 @@ public sealed class RunHistoryStore
 {
     private readonly string _dbPath;
 
+    /// <summary>Opens the store without ever throwing for a bad database
+    /// (E6): corrupt/unwritable history.db falls back to a per-process temp
+    /// file plus a warning, so scheduled runs and GUI start degrade instead
+    /// of crashing. Throws only when even the fallback is unusable (nothing
+    /// left to record into — the crash handler then gets a real trace).</summary>
+    public static (RunHistoryStore Store, string? Warning) OpenResilient(string dbPath)
+    {
+        try
+        {
+            return (new RunHistoryStore(dbPath), null);
+        }
+        catch (Exception ex)
+        {
+            string fallback = Path.Combine(Path.GetTempPath(),
+                $"scriptsuite-history-fallback-{Environment.ProcessId}.db");
+            try
+            {
+                var store = new RunHistoryStore(fallback);
+                return (store,
+                    $"Run history unavailable ({dbPath}: {ex.Message}) — using a temporary database for this session.");
+            }
+            catch (Exception ex2)
+            {
+                throw new InvalidOperationException(
+                    $"Run history unavailable ({dbPath}: {ex.Message})"
+                    + $" and fallback failed ({fallback}: {ex2.Message}).", ex);
+            }
+        }
+    }
+
     public RunHistoryStore(string dbPath)
     {
         _dbPath = dbPath;
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-        using var conn = Open();
+        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);        using var conn = Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS RunHistory (
