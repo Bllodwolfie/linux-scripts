@@ -48,6 +48,18 @@ public sealed class SystemdScheduleService
         new(@"^([01]?\d|2[0-3]):[0-5]\d$",
             System.Text.RegularExpressions.RegexOptions.Compiled);
 
+    private static readonly System.Text.RegularExpressions.Regex SafeId =
+        new(@"^[A-Za-z0-9_-]+$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>ScriptId allow-list (F-EX): unit files are parsed by systemd,
+    /// so the id reaching ExecStart/Description must be inert — letters,
+    /// digits, dash, underscore only (covers every built-in id). Anything
+    /// else (spaces, newlines, $, ;) is refused, never sanitized-into-a-
+    /// different-timer. Filenames keep the Sanitize mapping as depth.</summary>
+    public static bool IsValidScriptId(string? scriptId) =>
+        scriptId is not null && SafeId.IsMatch(scriptId);
+
     /// <summary>Strict HH:mm 24h parse (F-2): the ONLY accepted time format,
     /// shared by the dialog and Register. TimeSpan.TryParse is far too lax —
     /// "9" parses as 9 DAYS, and hh:mm then formats the days away into a
@@ -113,8 +125,10 @@ public sealed class SystemdScheduleService
     {
         try
         {
-            // F-2: strict time FIRST (before any file or systemctl touch) —
-            // never a silent 9:00 fallback, never a 00:00 misfire.
+            // F-EX: id first (injection vector) — before any file or
+            // systemctl touch. F-2: strict time next, same bar.
+            if (!IsValidScriptId(entry.ScriptId))
+                return (false, $"ScriptId must match [A-Za-z0-9_-]+, got '{entry.ScriptId}'.");
             if (!TryParseTimeOfDay(entry.TimeOfDay, out var ts))
                 return (false, $"TimeOfDay must look like HH:mm (e.g. 09:00), got '{entry.TimeOfDay}'.");
             int interval = entry.Interval < 1 ? 1 : entry.Interval;

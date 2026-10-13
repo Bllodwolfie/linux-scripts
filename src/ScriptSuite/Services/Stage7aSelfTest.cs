@@ -207,6 +207,43 @@ public static class Stage7aSelfTest
                 Check(strictOk, "strict HH:mm table (single-digit/seconds/day-overflow rejected)");
             }
 
+            // --- 5e. F-EX: ScriptId is validated before reaching unit files.
+            // --- A newline/semicolon/space in the id must never reach
+            // --- ExecStart (directive injection into a systemd-parsed file).
+            // --- XDG redirected for the duration: even pre-fix code can only
+            // --- write to scratch here, never the real unit dir. ---
+            {
+                string? origXdg = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+                string exRoot = Path.Combine(Path.GetTempPath(),
+                    "scriptsuite_stage7a_execstart_" + Guid.NewGuid().ToString("N")[..8]);
+                try
+                {
+                    Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", Path.Combine(exRoot, "config"));
+                    string exUnitDir = SystemdScheduleService.UnitDir;
+                    foreach (var evil in new[] { "x\nEvil=1", "a b;evil", "x$(id)", ".." })
+                    {
+                        var evilEntry = new ScheduleEntry { ScriptId = evil, Unit = "Days", Interval = 1, TimeOfDay = "09:00" };
+                        var (evilOk, evilErr) = SystemdScheduleService.Register(evilEntry);
+                        Check(!evilOk && evilErr is not null && evilErr.Contains("ScriptId"),
+                            $"register refuses id '{evil.Replace("\n", "\\n")}' ({evilErr ?? "no reason"})");
+                    }
+                    bool strayExec = false;
+                    if (Directory.Exists(exUnitDir))
+                        foreach (var f in Directory.GetFiles(exUnitDir, "*.service"))
+                            foreach (var line in File.ReadAllLines(f))
+                                if (line.StartsWith("ExecStart=", StringComparison.Ordinal)
+                                    && !System.Text.RegularExpressions.Regex.IsMatch(line,
+                                        @"^ExecStart=\S+ --scheduled-run [A-Za-z0-9_-]+$"))
+                                    strayExec = true;
+                    Check(!strayExec, "no injected ExecStart reaches unit files");
+                }
+                finally
+                {
+                    Environment.SetEnvironmentVariable("XDG_CONFIG_HOME", origXdg);
+                    try { if (Directory.Exists(exRoot)) Directory.Delete(exRoot, recursive: true); } catch { }
+                }
+            }
+
             // --- 6. direct --scheduled-run (test config, backup/restore user config) ---
             string cfgPath = AppPaths.ConfigPathFor("TempCleanup");
             // The configs dir may not exist on a fresh machine (CI runners):
