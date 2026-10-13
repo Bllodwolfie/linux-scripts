@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Recursively removes empty folders under TargetFolder.
-# Multi-pass loop: deleting a folder can leave its now-empty parent behind,
-# so passes repeat until one removes nothing (a pass that deletes nothing
-# cannot make progress — the loop stops instead of spinning forever).
+# Single bottom-up pass (find -depth lists children before parents):
+# deleting a folder can empty its parent, which is reached later in the
+# same scan — no multi-pass re-walk of the whole tree.
 # Folders go through `rmdir` (non-recursive): a folder that turned non-empty
 # between scan and delete fails instead of silently losing new contents.
 # Permanent deletion, never Trash — but only genuinely EMPTY folders are ever
@@ -129,9 +129,9 @@ WALK_LIST=$(mktemp) || { error "Cannot create temp file for directory walk — a
 WALK_TMP=$(mktemp) || { error "Cannot create temp file for directory walk — aborting."; exit 1; }
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
-    # Simulate the multi-pass loop against a removed-set (not the disk) so
+    # Simulate the deletion against a removed-set (not the disk) so
     # parents emptied by deleted children preview exactly as the real run
-    # would delete them.
+    # would delete them. Children-first order makes one pass sufficient.
     declare -A SIM_REMOVED=()
     sim_empty() { # path -> 0 when empty ignoring simulated-removed entries
         local e
@@ -143,51 +143,41 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
         done < "$WALK_TMP"
         return 0
     }
-    changed=1
-    while [[ "$changed" -eq 1 ]]; do
-        changed=0
-        walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d
-        while IFS= read -r -d '' d; do
-            canon=$(canonical "$d")
-            [[ -n "${SIM_REMOVED[$canon]:-}" ]] && continue
-            is_ignored "$canon" && continue
-            is_selected "$canon" || continue
-            if sim_empty "$d"; then
-                SIM_REMOVED["$canon"]=1
-                changed=1
-                dryrun_item "Delete" "$canon" "empty folder"
-            fi
-        done < "$WALK_LIST"
-    done
+    walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d -depth
+    while IFS= read -r -d '' d; do
+        canon=$(canonical "$d")
+        [[ -n "${SIM_REMOVED[$canon]:-}" ]] && continue
+        is_ignored "$canon" && continue
+        is_selected "$canon" || continue
+        if sim_empty "$d"; then
+            SIM_REMOVED["$canon"]=1
+            dryrun_item "Delete" "$canon" "empty folder"
+        fi
+    done < "$WALK_LIST"
     rm -f -- "$WALK_LIST" "$WALK_TMP"
     walk_finish "folder cleanup"
     exit 0
 fi
 
 write_log "$LOGFILE" "Cleanup started"
-while :; do
-    deleted_anything=0
-    declare -A UNDEL=()
-    walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d
-    while IFS= read -r -d '' d; do
-        canon=$(canonical "$d")
-        is_ignored "$canon" && continue
-        is_selected "$canon" || continue
-        is_empty_dir "$d" || continue
-        # Non-recursive rmdir: a folder that turned non-empty since the scan
-        # fails here instead of losing new contents (Windows $false parity).
-        rmdir -- "$d" 2>/dev/null
-        if [[ -e "$d" ]]; then
-            UNDEL["$canon"]=1
-        else
-            deleted_anything=1
-            write_log "$LOGFILE" "DELETED : $canon"
-        fi
-    done < "$WALK_LIST"
-    for u in ${!UNDEL[@]+"${!UNDEL[@]}"}; do
-        warn "Could not remove empty folder: $u"
-    done
-    [[ "$deleted_anything" -eq 0 ]] && break
+declare -A UNDEL=()
+walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d -depth
+while IFS= read -r -d '' d; do
+    canon=$(canonical "$d")
+    is_ignored "$canon" && continue
+    is_selected "$canon" || continue
+    is_empty_dir "$d" || continue
+    # Non-recursive rmdir: a folder that turned non-empty since the scan
+    # fails here instead of losing new contents (Windows $false parity).
+    rmdir -- "$d" 2>/dev/null
+    if [[ -e "$d" ]]; then
+        UNDEL["$canon"]=1
+    else
+        write_log "$LOGFILE" "DELETED : $canon"
+    fi
+done < "$WALK_LIST"
+for u in ${!UNDEL[@]+"${!UNDEL[@]}"}; do
+    warn "Could not remove empty folder: $u"
 done
 # Ignored folders stay empty on disk by design — exclude them here too, or a
 # run that correctly kept them would still report Warning.

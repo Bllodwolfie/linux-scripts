@@ -179,11 +179,25 @@ in_only() { # canonical-target
     [[ -n "${ONLY_MAP[$1]:-}" ]]
 }
 
+# Batch indexes (D-SC): canonical target + epoch per base, and the reverse
+# base per canonical target — built ONCE after collection. The confirmed-
+# subset run nested every selection inside every row with a canonical fork
+# per comparison (O(K×N) realpath execs); the dry-run re-canonicalized each
+# row on every scan. All loops below are hash lookups: zero forks.
+declare -A CANON_BY_BASE=() BASE_BY_CANON=() EPOCH_BY_BASE=()
+for row in ${ITEMS[@]+"${ITEMS[@]}"}; do
+    split_row "$row"
+    _canon=$(canonical "$ROW_TARGET")
+    CANON_BY_BASE["$ROW_BASE"]="$_canon"
+    EPOCH_BY_BASE["$ROW_BASE"]="$ROW_EPOCH"
+    [[ -z "${BASE_BY_CANON[$_canon]:-}" ]] && BASE_BY_CANON["$_canon"]="$ROW_BASE"
+done
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
     del_n=0; skip_n=0; del_sz=0; skip_sz=0
     for row in ${ITEMS[@]+"${ITEMS[@]}"}; do
         split_row "$row"; base="$ROW_BASE"; target="$ROW_TARGET"; epoch="$ROW_EPOCH"; size="$ROW_SIZE"
-        canon=$(canonical "$target")
+        canon="${CANON_BY_BASE[$base]:-}"
         if ! in_only "$canon"; then continue; fi
         sz=$(fmt_size "$size")
         if is_old "$epoch"; then
@@ -240,22 +254,19 @@ if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
     # age verdict (S1): a checked Skip row (younger than MinAgeDays) must
     # never be deleted just because it was listed.
     for key in "${!ONLY_MAP[@]}"; do
-        found=""; foundepoch=""
-        for row in ${ITEMS[@]+"${ITEMS[@]}"}; do
-            split_row "$row"; base="$ROW_BASE"; target="$ROW_TARGET"; epoch="$ROW_EPOCH"; size="$ROW_SIZE"
-            if [[ "$(canonical "$target")" == "$key" ]]; then found="$base"; foundepoch="$epoch"; break; fi
-        done
-        if [[ -z "$found" ]]; then
+        base="${BASE_BY_CANON[$key]:-}"
+        if [[ -z "$base" ]]; then
             warn "Skipped trash item (no longer in the Trash): $key"
             warned=$(( warned + 1 ))
             continue
         fi
+        foundepoch="${EPOCH_BY_BASE[$base]}"
         if ! is_old "$foundepoch"; then
             warn "Skipped trash item (younger than $MIN_AGE days — preview marked it Skip): $key"
             warned=$(( warned + 1 ))
             continue
         fi
-        if delete_pair "$found"; then
+        if delete_pair "$base"; then
             deleted=$(( deleted + 1 ))
         else
             warn "Could not permanently delete $key: $(delete_cause)"
