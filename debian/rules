@@ -23,15 +23,13 @@ override_dh_auto_clean:
 	dh_auto_clean
 
 # Wayland taskbar/dock icon: the compositor resolves the app id through
-# the .desktop file, so ship square cat art into the hicolor theme under
-# the Icon=scriptsuite name (X11/title-bar fallback comes from the square
-# .ico Window.Icon resource instead). The source art is landscape, so the
-# shipped file is the ImageMagick-equivalent transparent-center pad
-# (convert -background none -gravity center -extent 666x666); regenerated
-# with Pillow here because this host has no ImageMagick.
+# the .desktop file, so ship square cat art into the hicolor theme. The
+# name is scriptsuite-logo (NOT scriptsuite): KDE caches icons by name,
+# and the old padded revision is stuck in that cache entry — a fresh
+# name forces every cache to pick up the cropped art.
 override_dh_install:
 	dh_install
-	install -D -m644 assets/Cat_bobber-dark-square.png debian/scriptsuite/usr/share/icons/hicolor/512x512/apps/scriptsuite.png
+	install -D -m644 assets/Cat_bobber-dark-square.png debian/scriptsuite/usr/share/icons/hicolor/512x512/apps/scriptsuite-logo.png
 
 # The self-contained .NET single-file binary must NOT be stripped: it carries
 # no debuginfo dh_strip could use, and stripping risks corrupting the bundle.
