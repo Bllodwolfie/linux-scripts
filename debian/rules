@@ -22,6 +22,14 @@ override_dh_auto_clean:
 	rm -rf debian/publish debian/scriptsuite
 	dh_auto_clean
 
+# Wayland taskbar/dock icon: the compositor resolves the app id through
+# the .desktop file, so ship the cat art into the hicolor theme under the
+# Icon=scriptsuite name (X11/title-bar fallback comes from the Avalonia
+# Window.Icon resource instead).
+override_dh_install:
+	dh_install
+	install -D -m644 assets/Cat_bobber-dark.png debian/scriptsuite/usr/share/icons/hicolor/512x512/apps/scriptsuite.png
+
 # The self-contained .NET single-file binary must NOT be stripped: it carries
 # no debuginfo dh_strip could use, and stripping risks corrupting the bundle.
 # Only the plain bundled C library is stripped (lintian
