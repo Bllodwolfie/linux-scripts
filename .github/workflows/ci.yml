@@ -31,6 +31,12 @@ jobs:
       - name: Headless self-tests (stages 2-9)
         run: src/ScriptSuite/bin/Release/net8.0/ScriptSuite --self-test
 
+      - name: Cross-uid elevation handoff (root child, caller-owned result)
+        # Needs passwordless sudo (runners have it); the test SKIPs anywhere
+        # else. Proves end to end that the root child fchowns its rendezvous
+        # files to the caller — the 10:42 root-0600 regression cannot recur.
+        run: bash tests/test-cross-uid-ci.sh
+
       - name: Build .deb from a clean git-archive export
         # The checkout above holds dotnet build outputs (bin/, obj/) that
         # must never enter the package. Export HEAD to /tmp/ss-build (the
