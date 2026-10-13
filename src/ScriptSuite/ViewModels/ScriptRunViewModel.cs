@@ -245,6 +245,11 @@ public partial class ScriptRunViewModel : ViewModelBase
             result = await Task.Run(() => _manifest.RequiresAdmin
                 ? _elevation.RunElevated(_manifest.Id, _configPath, includeOnly, Append, token)
                 : _executor.Execute(_manifest.Id, _configPath, dryRun: false, includeOnly, Append, token));
+            // Inside the try: a history-store failure must surface as
+            // "Run error", never as an unhandled crash (C3).
+            var finishedAt = DateTime.Now;
+            _history.Insert(_manifest.Id, startedAt, finishedAt, result.Outcome,
+                RunHistoryStore.BuildSummary(result.Logs));
         }
         catch (Exception ex)
         {
@@ -256,10 +261,6 @@ public partial class ScriptRunViewModel : ViewModelBase
             };
             _marshal(() => LogLines.Add("Run error: " + ex.Message));
         }
-        var finishedAt = DateTime.Now;
-
-        _history.Insert(_manifest.Id, startedAt, finishedAt, result.Outcome,
-            RunHistoryStore.BuildSummary(result.Logs));
 
         StatusText = result.Outcome switch
         {

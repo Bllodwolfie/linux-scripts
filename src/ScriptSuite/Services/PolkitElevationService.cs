@@ -203,6 +203,16 @@ public sealed class PolkitElevationService
         {
             return ReadResultFile(resultPath, scriptId);
         }
+        catch (Exception ex)
+        {
+            // Transport ok (the file exists) but the payload is unreadable —
+            // e.g. a root-owned 0600 result from a pre-handoff child, or a
+            // damaged file. Never let the raw exception (typically
+            // UnauthorizedAccessException) escape to the UI as "Run error":
+            // exit 0 finished the work (Warning: verify via journal/export),
+            // anything else Failed with the reason.
+            return MapUnreadableResult(scriptId, child.ExitCode, ex);
+        }
         finally
         {
             TryDelete(resultPath);
@@ -381,6 +391,25 @@ public sealed class PolkitElevationService
             "--include-only", preview.IncludePath,
         };
         return argv;
+    }
+
+    /// <summary>Result for a run whose child finished (result file exists)
+    /// but the payload cannot be read back. Child exit 0 did the work —
+    /// Warning (verify via journal/export folder); anything else Failed with
+    /// the read reason. Pure: unit-covered by Stage 4 (chmod-000 simulates
+    /// the root-owned-0600 trigger without privilege).</summary>
+    public static ScriptRunResult MapUnreadableResult(string scriptId, int childExitCode, Exception readError)
+    {
+        return new ScriptRunResult
+        {
+            Outcome = childExitCode == 0 ? RunOutcome.Warning : RunOutcome.Failed,
+            ScriptId = scriptId,
+            Logs = new List<string>
+            {
+                "helper finished, but its result could not be read; check the journal and your export folder.",
+                "read-back failed: " + readError.Message,
+            },
+        };
     }
 
     /// <summary>Log lines for a run whose child never wrote a result file

@@ -263,6 +263,32 @@ public static class Stage4SelfTest
                 finally { Environment.SetEnvironmentVariable("PKEXEC_UID", origPkexec); }
             }
 
+            // --- 7i. unreadable-result mapping (C3): chmod-000 simulates the
+            // --- root-owned-0600 trigger without privilege; exit 0 maps to
+            // --- Warning with the helper-finished line, non-zero to Failed
+            // --- with the reason. Never an escaping UnauthorizedAccessException.
+            {
+                string trig = Path.Combine(cfgDir, "unreadable.json");
+                File.WriteAllText(trig, "{}");
+                File.SetUnixFileMode(trig, UnixFileMode.None);
+                Exception? trigger = null;
+                try { File.ReadAllText(trig); }
+                catch (Exception ex) { trigger = ex; }
+                File.SetUnixFileMode(trig, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                Check(trigger is UnauthorizedAccessException
+                    && trigger.Message.Contains("Access to the path"),
+                    $"chmod-000 read-back throws UnauthorizedAccessException ({trigger?.GetType().Name}: {trigger?.Message})");
+                var w = PolkitElevationService.MapUnreadableResult("ClearJournal", 0, trigger!);
+                Check(w.Outcome == RunOutcome.Warning && w.ScriptId == "ClearJournal"
+                    && w.Logs.Any(l => l.Contains("helper finished, but its result could not be read"))
+                    && w.Logs.Any(l => l.Contains("Access to the path")),
+                    "exit-0 unreadable result maps to Warning + helper-finished line + reason");
+                var f = PolkitElevationService.MapUnreadableResult("ClearJournal", 1, trigger!);
+                Check(f.Outcome == RunOutcome.Failed && f.ScriptId == "ClearJournal"
+                    && f.Logs.Any(l => l.Contains("Access to the path")),
+                    "non-zero-exit unreadable result maps to Failed with the reason");
+            }
+
             // --- 7d. garbage include-only aborts (never widens), exit 2. ---
             {
                 string badInclude = Path.Combine(cfgDir, "child-bad.include.json");

@@ -189,6 +189,11 @@ public partial class RunAllViewModel : ViewModelBase
                     result = await Task.Run(() => m.RequiresAdmin
                         ? _elevation.RunElevated(m.Id, _configPathFor(m.Id))
                         : _executor.Execute(m.Id, _configPathFor(m.Id), dryRun: false));
+                    // Inside the try (C3): a history-store failure must not
+                    // escape a per-leg run as an unhandled crash.
+                    var finishedAt = DateTime.Now;
+                    _history.Insert(m.Id, startedAt, finishedAt, result.Outcome,
+                        RunHistoryStore.BuildSummary(result.Logs));
                 }
                 catch (Exception ex)
                 {
@@ -200,9 +205,6 @@ public partial class RunAllViewModel : ViewModelBase
                     };
                 }
             }
-            var finishedAt = DateTime.Now;
-            _history.Insert(m.Id, startedAt, finishedAt, result.Outcome,
-                RunHistoryStore.BuildSummary(result.Logs));
 
             switch (result.Outcome)
             {
