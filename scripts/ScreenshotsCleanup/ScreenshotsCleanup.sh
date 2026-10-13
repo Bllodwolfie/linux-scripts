@@ -116,10 +116,25 @@ fi
 
 removed=0
 skipped=0
+stat_fails=0
+# A-3: walk through a list file so find errors surface as WARN (Warning
+# outcome), never silent Success. stat failures count loudly too.
+walk_begin
+WALK_LIST=$(mktemp) || { error "Cannot create temp file for directory walk — aborting."; exit 1; }
+walk_find "$WALK_LIST" "$CANON_TARGET" -maxdepth 1 -type f
 while IFS= read -r -d '' f; do
     name=$(basename -- "$f")
     canon=$(canonical "$f")
-    if ! is_old_file "$f" "$CUTOFF" "$NOW_EPOCH"; then continue; fi
+    # A-3: unstatable is not young — report and skip conservatively.
+    is_old_file "$f" "$CUTOFF" "$NOW_EPOCH"; age_rc=$?
+    if [[ "$age_rc" -eq 2 ]]; then
+        stat_fails=$(( stat_fails + 1 ))
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+            dryrun_item "Skip" "$canon" "age unverifiable (could not stat) — skipped conservatively"
+        fi
+        continue
+    fi
+    [[ "$age_rc" -eq 0 ]] || continue
 
     # IgnorePatterns wins over age and over IncludeOnly.
     if [[ ${#IGNORE_PATS[@]} -gt 0 ]] && ignored_by=$(matches_pattern_list "$name" "${IGNORE_PATS[@]}"); then
@@ -133,7 +148,12 @@ while IFS= read -r -d '' f; do
     if [[ "$ONLY_ACTIVE" -eq 1 && -z "${ONLY_MAP[$canon]:-}" ]]; then continue; fi
 
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        dryrun_item "Delete" "$canon" "$(file_detail "$f")"
+        if detail=$(file_detail "$f"); then
+            dryrun_item "Delete" "$canon" "$detail"
+        else
+            stat_fails=$(( stat_fails + 1 ))
+            dryrun_item "Delete" "$canon" "size unknown (could not stat — vanished mid-scan?)"
+        fi
         continue
     fi
     if trash_file "$f"; then
@@ -144,7 +164,12 @@ while IFS= read -r -d '' f; do
         trash_warn "$rc" "$canon" "$name" "$LOGFILE" ""
         skipped=$(( skipped + 1 ))
     fi
-done < <(find "$CANON_TARGET" -maxdepth 1 -type f -print0 2>/dev/null)
+done < "$WALK_LIST"
+rm -f -- "$WALK_LIST"
+if [[ "$stat_fails" -gt 0 ]]; then
+    warn "$stat_fails file(s) could not be statted (vanished mid-scan?) — details may be incomplete."
+fi
+walk_finish "screenshots cleanup"
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
     write_log "$LOGFILE" "ScreenshotsCleanup removed $removed file(s), skipped $skipped locked file(s)"

@@ -107,8 +107,12 @@ is_selected() { # canonical-path
 }
 
 # Empty = zero entries at any depth-1 listing (hidden entries count).
+# A-3: a walk error (unreadable dir) counts as NON-empty — an unverifiable
+# dir must be kept, never rmdir'd away on a failed listing.
 is_empty_dir() { # path
-    [[ -z $(find "$1" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null) ]]
+    walk_find_text "$WALK_TMP" "$1" -mindepth 1 -maxdepth 1
+    if [[ "$WALK_RC" -ne 0 ]]; then return 1; fi
+    [[ ! -s "$WALK_TMP" ]]
 }
 
 LOGFILE="$LOGDIR/$LOGFILE_NAME"
@@ -117,6 +121,13 @@ mkdir -p -- "$LOGDIR" 2>/dev/null
 # Missing target: nothing to do (silent, like the Windows Test-Path guard).
 [[ -d "$CANON_TARGET" ]] || exit 0
 
+# A-3: every walk below shares two list files + one stderr accumulator;
+# errors surface once via walk_finish (Warning outcome), never silent
+# Success, and an unlistable dir is never treated as empty.
+walk_begin
+WALK_LIST=$(mktemp) || { error "Cannot create temp file for directory walk — aborting."; exit 1; }
+WALK_TMP=$(mktemp) || { error "Cannot create temp file for directory walk — aborting."; exit 1; }
+
 if [[ "$DRY_RUN" -eq 1 ]]; then
     # Simulate the multi-pass loop against a removed-set (not the disk) so
     # parents emptied by deleted children preview exactly as the real run
@@ -124,15 +135,18 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     declare -A SIM_REMOVED=()
     sim_empty() { # path -> 0 when empty ignoring simulated-removed entries
         local e
+        walk_find "$WALK_TMP" "$1" -mindepth 1 -maxdepth 1
+        if [[ "$WALK_RC" -ne 0 ]]; then return 1; fi
         while IFS= read -r -d '' e; do
             [[ -n "${SIM_REMOVED[$(canonical "$e")]:-}" ]] && continue
             return 1
-        done < <(find "$1" -mindepth 1 -maxdepth 1 -print0 2>/dev/null)
+        done < "$WALK_TMP"
         return 0
     }
     changed=1
     while [[ "$changed" -eq 1 ]]; do
         changed=0
+        walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d
         while IFS= read -r -d '' d; do
             canon=$(canonical "$d")
             [[ -n "${SIM_REMOVED[$canon]:-}" ]] && continue
@@ -143,8 +157,10 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
                 changed=1
                 dryrun_item "Delete" "$canon" "empty folder"
             fi
-        done < <(find "$CANON_TARGET" -mindepth 1 -type d -print0 2>/dev/null)
+        done < "$WALK_LIST"
     done
+    rm -f -- "$WALK_LIST" "$WALK_TMP"
+    walk_finish "folder cleanup"
     exit 0
 fi
 
@@ -152,6 +168,7 @@ write_log "$LOGFILE" "Cleanup started"
 while :; do
     deleted_anything=0
     declare -A UNDEL=()
+    walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d
     while IFS= read -r -d '' d; do
         canon=$(canonical "$d")
         is_ignored "$canon" && continue
@@ -166,7 +183,7 @@ while :; do
             deleted_anything=1
             write_log "$LOGFILE" "DELETED : $canon"
         fi
-    done < <(find "$CANON_TARGET" -mindepth 1 -type d -print0 2>/dev/null)
+    done < "$WALK_LIST"
     for u in ${!UNDEL[@]+"${!UNDEL[@]}"}; do
         warn "Could not remove empty folder: $u"
     done
@@ -175,13 +192,16 @@ done
 # Ignored folders stay empty on disk by design — exclude them here too, or a
 # run that correctly kept them would still report Warning.
 remaining=0
+walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d
 while IFS= read -r -d '' d; do
     canon=$(canonical "$d")
     is_ignored "$canon" && continue
     if is_empty_dir "$d"; then remaining=$(( remaining + 1 )); fi
-done < <(find "$CANON_TARGET" -mindepth 1 -type d -print0 2>/dev/null)
+done < "$WALK_LIST"
 if [[ "$remaining" -gt 0 ]]; then
     warn "$remaining empty folder(s) could not be removed (locked or protected)"
 fi
+rm -f -- "$WALK_LIST" "$WALK_TMP"
+walk_finish "folder cleanup"
 write_log "$LOGFILE" "Cleanup finished"
 exit 0

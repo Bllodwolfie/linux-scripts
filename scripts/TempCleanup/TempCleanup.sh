@@ -119,17 +119,29 @@ fi
 # --- matches nothing (same as Windows: a future cutoff excludes everything).
 deleted=0
 skipped=0
+stat_fails=0
 if [[ "$CUTOFF" -ge 0 ]]; then
+    # A-3: the walk goes through a list file (find's stderr + exit code
+    # survive; process substitution swallows both). Partial walks WARN.
+    walk_begin
+    WALK_LIST=$(mktemp) || { error "Cannot create temp file for directory walk — aborting."; exit 1; }
     cutoff_min=$(( CUTOFF * 1440 ))
+    walk_find "$WALK_LIST" "$CANON_TARGET" -type f -mmin +"$cutoff_min"
     while IFS= read -r -d '' f; do
         canon=$(canonical "$f")
         if is_ignored "$canon"; then continue; fi
         if [[ "$ONLY_ACTIVE" -eq 1 && -z "${ONLY_MAP[$canon]:-}" ]]; then continue; fi
         if [[ "$DRY_RUN" -eq 1 ]]; then
-            size=$(stat -c %s -- "$f" 2>/dev/null || echo 0)
-            mdate=$(stat -c %y -- "$f" 2>/dev/null | cut -d' ' -f1 || echo unknown)
-            mb=$(LC_ALL=C awk -v s="$size" 'BEGIN{printf "%.1f", s/1048576}')
-            dryrun_item "Delete" "$canon" "$mb MB, last modified $mdate"
+            # A-3: stat can fail on a file find just listed (vanished
+            # mid-scan) — count it loudly instead of printing 0/unknown.
+            if size=$(stat -c %s -- "$f" 2>/dev/null) \
+                && mfull=$(stat -c %y -- "$f" 2>/dev/null) && [[ -n "$mfull" ]]; then
+                mb=$(LC_ALL=C awk -v s="$size" 'BEGIN{printf "%.1f", s/1048576}')
+                dryrun_item "Delete" "$canon" "$mb MB, last modified ${mfull%% *}"
+            else
+                stat_fails=$(( stat_fails + 1 ))
+                dryrun_item "Delete" "$canon" "size/date unknown (vanished mid-scan?)"
+            fi
         else
             if rm -f -- "$f" 2>/dev/null; then
                 deleted=$(( deleted + 1 ))
@@ -138,7 +150,12 @@ if [[ "$CUTOFF" -ge 0 ]]; then
                 skipped=$(( skipped + 1 ))
             fi
         fi
-    done < <(find "$CANON_TARGET" -type f -mmin +"$cutoff_min" -print0 2>/dev/null)
+    done < "$WALK_LIST"
+    rm -f -- "$WALK_LIST"
+    if [[ "$stat_fails" -gt 0 ]]; then
+        warn "$stat_fails file(s) could not be statted (vanished mid-scan?) — details may be incomplete."
+    fi
+    walk_finish "temp cleanup"
 fi
 
 if [[ "$DRY_RUN" -eq 0 ]]; then

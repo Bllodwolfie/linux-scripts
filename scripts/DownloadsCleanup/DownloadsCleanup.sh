@@ -170,11 +170,26 @@ fi
 
 deleted=0
 skipped=0
+stat_fails=0
+# A-3: walk through a list file so find errors surface as WARN (Warning
+# outcome), never silent Success.
+walk_begin
+WALK_LIST=$(mktemp) || { error "Cannot create temp file for directory walk — aborting."; exit 1; }
+walk_find "$WALK_LIST" "$CANON_SOURCE" -maxdepth 1 -type f
 while IFS= read -r -d '' f; do
     name=$(basename -- "$f")
     canon=$(canonical "$f")
     # File age first: young files are left alone regardless of rules.
-    if ! is_old_file "$f" "$CUTOFF" "$NOW_EPOCH"; then continue; fi
+    # A-3: unstatable is not young — report and skip conservatively.
+    is_old_file "$f" "$CUTOFF" "$NOW_EPOCH"; age_rc=$?
+    if [[ "$age_rc" -eq 2 ]]; then
+        stat_fails=$(( stat_fails + 1 ))
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+            dryrun_item "Skip" "$canon" "age unverifiable (could not stat) — skipped conservatively"
+        fi
+        continue
+    fi
+    [[ "$age_rc" -eq 0 ]] || continue
 
     # IgnorePatterns wins over everything (age already applied above).
     if [[ ${#IGNORE_PATS[@]} -gt 0 ]] && ignored_by=$(matches_pattern_list "$name" "${IGNORE_PATS[@]}"); then
@@ -206,7 +221,12 @@ while IFS= read -r -d '' f; do
                 ;;
             Delete)
                 if [[ "$DRY_RUN" -eq 1 ]]; then
-                    dryrun_item "Delete" "$canon" "$(file_detail "$f") [advanced rule]"
+                    if detail=$(file_detail "$f"); then
+                        dryrun_item "Delete" "$canon" "$detail [advanced rule]"
+                    else
+                        stat_fails=$(( stat_fails + 1 ))
+                        dryrun_item "Delete" "$canon" "size unknown (could not stat — vanished mid-scan?) [advanced rule]"
+                    fi
                 else
                     if trash_file "$f"; then
                         write_log "$LOGFILE" "DELETED : $name [advanced rule]"
@@ -247,7 +267,12 @@ while IFS= read -r -d '' f; do
     # DeleteExts -> trash.
     if [[ -n "$ext" && -n "${DELETE_MAP[$ext]:-}" ]]; then
         if [[ "$DRY_RUN" -eq 1 ]]; then
-            dryrun_item "Delete" "$canon" "$(file_detail "$f")"
+            if detail=$(file_detail "$f"); then
+                dryrun_item "Delete" "$canon" "$detail"
+            else
+                stat_fails=$(( stat_fails + 1 ))
+                dryrun_item "Delete" "$canon" "size unknown (could not stat — vanished mid-scan?)"
+            fi
         else
             if trash_file "$f"; then
                 write_log "$LOGFILE" "DELETED : $name"
@@ -282,7 +307,12 @@ while IFS= read -r -d '' f; do
     else
         write_log "$LOGFILE" "SKIPPED : $name (unrecognized extension: $ext)"
     fi
-done < <(find "$CANON_SOURCE" -maxdepth 1 -type f -print0 2>/dev/null)
+done < "$WALK_LIST"
+rm -f -- "$WALK_LIST"
+if [[ "$stat_fails" -gt 0 ]]; then
+    warn "$stat_fails file(s) could not be statted (vanished mid-scan?) — details may be incomplete."
+fi
+walk_finish "downloads cleanup"
 
 if [[ "$DRY_RUN" -eq 0 ]]; then
     write_log "$LOGFILE" "Cleanup finished"

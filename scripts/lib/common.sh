@@ -108,21 +108,58 @@ fmt_size() { # bytes
 }
 
 # "N.N MB, last modified yyyy-MM-dd" detail string (Windows dry-run format).
-file_detail() { # path
-    local sz d
-    sz=$(stat -c %s -- "$1" 2>/dev/null || echo 0)
-    d=$(stat -c %y -- "$1" 2>/dev/null | cut -d' ' -f1)
-    LC_ALL=C awk -v s="$sz" -v d="${d:-unknown}" 'BEGIN{printf "%.1f MB, last modified %s", s/1048576, d}'
+file_detail() { # path -> 0 ok; 1 when stat failed (detail says so)
+    local sz dy rc=0
+    sz=$(stat -c %s -- "$1" 2>/dev/null) || { sz="unknown"; rc=1; }
+    dy=$(stat -c %y -- "$1" 2>/dev/null) || { dy=""; rc=1; }
+    if [[ "$rc" -ne 0 ]]; then
+        printf 'size unknown, last modified unknown (could not stat)'
+        return 1
+    fi
+    LC_ALL=C awk -v s="$sz" -v d="${dy%% *}" 'BEGIN{printf "%.1f MB, last modified %s", s/1048576, d}'
 }
 
-# True when the file's mtime is strictly older than cutoff_days before
+# True (0) when the file's mtime is strictly older than cutoff_days before
 # now_epoch (mirrors LastWriteTime < now-AddDays; negative cutoff matches
-# nothing, as on Windows).
+# nothing, as on Windows). Returns 2 when the file cannot be statted at all
+# (unreadable path — NOT young: callers must report and skip conservatively,
+# never silently treat as young). 1 means young.
 is_old_file() { # path cutoff_days now_epoch
     [[ "$2" -lt 0 ]] && return 1
     local mt
-    mt=$(stat -c %Y -- "$1" 2>/dev/null) || return 1
+    mt=$(stat -c %Y -- "$1" 2>/dev/null) || return 2
     [[ "$mt" -lt $(( $3 - $2 * 86400 )) ]]
+}
+
+# Partial-walk accounting for one run (A-3): process substitution swallows
+# find's stderr AND exit code, so walks go through these. walk_begin creates
+# the per-run stderr accumulator; walk_find runs find into a list file (exit
+# in WALK_RC, stderr appended to the accumulator); walk_finish warns once —
+# Warning outcome, never silent Success, never a hard abort — and removes
+# the accumulator. Call walk_finish before every exit after walk_begin.
+WALK_ACC=""
+WALK_RC=0
+walk_begin() {
+    WALK_ACC=$(mktemp) || { error "Cannot create temp file for walk errors — aborting."; exit 1; }
+}
+walk_find() { # listfile dir find-args... (no print action; -print0 added)
+    local listfile="$1"; shift
+    WALK_RC=0
+    find "$@" -print0 2>>"$WALK_ACC" >"$listfile" || WALK_RC=$?
+}
+walk_find_text() { # listfile dir find-args... (no print action; -print -quit added)
+    local listfile="$1"; shift
+    WALK_RC=0
+    find "$@" -print -quit 2>>"$WALK_ACC" >"$listfile" || WALK_RC=$?
+}
+walk_finish() { # context-label
+    if [[ -n "$WALK_ACC" ]]; then
+        if [[ -s "$WALK_ACC" ]]; then
+            warn "Partial walk during $1 (some entries unreadable — results may be incomplete): $(head -n 2 -- "$WALK_ACC" 2>/dev/null | tr '\n' ';')"
+        fi
+        rm -f -- "$WALK_ACC"
+        WALK_ACC=""
+    fi
 }
 
 # First glob pattern (PowerShell -like semantics) matching name, or false.
