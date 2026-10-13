@@ -49,6 +49,22 @@ public static class Stage8SelfTest
             Check(sel.IsChecked, "8a selection checked by default");
             Check(sel.ActionDisplay == "Delete", "8a selection action display");
 
+            // --- C5: crash recorder writes full traces locally (never sent) ---
+            string crashPath;
+            try
+            {
+                throw new InvalidOperationException("stage8 crash probe",
+                    new ArgumentException("inner probe"));
+            }
+            catch (Exception ex) { crashPath = CrashLog.Write(ex); }
+            Check(File.Exists(crashPath) && Path.GetFileName(crashPath).StartsWith("crash-"),
+                "8a crash file created");
+            string crashText = File.ReadAllText(crashPath);
+            Check(crashText.Contains("stage8 crash probe") && crashText.Contains("inner probe")
+                && crashText.Contains("nothing sent") && crashText.Contains("   at "),
+                "8a crash file carries message + inner + stack, local-only note");
+            try { File.Delete(crashPath); } catch { }
+
             // --- S1: manifest selection flags (global-effect scripts opt out) ---
             Check(!catalog.Find("ClearJournal")!.SupportsSelection, "8a clearjournal no-selection");
             Check(catalog.Find("TempCleanup")!.SupportsSelection, "8a temp cleanup selectable");

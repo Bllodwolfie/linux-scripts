@@ -33,6 +33,15 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Last-chance crash recorder first (local file, nothing sent): real
+        // unhandled exceptions must leave a full trace, not a bare line.
+        CrashLog.Install();
+
+        // Test-only probe (no CLI surface): crash on purpose to prove the
+        // recorder end to end. tests/test-crash-log.sh drives this.
+        if (Environment.GetEnvironmentVariable("SCRIPTSUITE_CRASH_TEST") == "1")
+            throw new InvalidOperationException("SCRIPTSUITE_CRASH_TEST probe");
+
         // Headless elevated child (launched via pkexec by PolkitElevationService):
         // run one script's execute phase and write the result JSON for the
         // parent to read back. Mirrors windows-scripts --elevated-run.
