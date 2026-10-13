@@ -17,6 +17,11 @@ public sealed class ScriptManifest
     [JsonPropertyName("category")] public string Category { get; set; } = "";
     [JsonPropertyName("requiresAdmin")] public bool RequiresAdmin { get; set; }
     [JsonPropertyName("supportsDryRun")] public bool SupportsDryRun { get; set; }
+    /// <summary>False for global-effect scripts (ClearJournal): preview rows
+    /// are informational, nothing is deselectable, Confirm needs no selection
+    /// and the include-only protocol is not used. Defaults true so existing
+    /// manifests keep per-item selection.</summary>
+    [JsonPropertyName("supportsSelection")] public bool SupportsSelection { get; set; } = true;
     [JsonPropertyName("scriptPath")] public string ScriptPath { get; set; } = "";
     [JsonPropertyName("fields")] public List<ScriptField> Fields { get; set; } = new();
 

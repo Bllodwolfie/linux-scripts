@@ -190,15 +190,22 @@ delete_pair() { # base -> 0 when both halves are gone
 warned=0
 deleted=0
 if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
-    # Confirmed subset: delete exactly the listed targets.
+    # Confirmed subset: delete exactly the listed targets — but re-derive the
+    # age verdict (S1): a checked Skip row (younger than MinAgeDays) must
+    # never be deleted just because it was listed.
     for key in "${!ONLY_MAP[@]}"; do
-        found=""
+        found=""; foundepoch=""
         for row in ${ITEMS[@]+"${ITEMS[@]}"}; do
             IFS="$SEP" read -r base target epoch size <<< "$row"
-            if [[ "$(canonical "$target")" == "$key" ]]; then found="$base"; break; fi
+            if [[ "$(canonical "$target")" == "$key" ]]; then found="$base"; foundepoch="$epoch"; break; fi
         done
         if [[ -z "$found" ]]; then
             warn "Skipped trash item (no longer in the Trash): $key"
+            warned=$(( warned + 1 ))
+            continue
+        fi
+        if ! is_old "$foundepoch"; then
+            warn "Skipped trash item (younger than $MIN_AGE days — preview marked it Skip): $key"
             warned=$(( warned + 1 ))
             continue
         fi

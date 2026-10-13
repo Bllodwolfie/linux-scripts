@@ -59,7 +59,7 @@ if [[ "$*" == *--list-boots* ]]; then
     exit 0
 fi
 if [[ "$*" == *--vacuum-time* ]]; then printf '%s\n' "$*" >> "${JSTUB_VACLOG:-/dev/null}"; echo "Vacuuming done."; exit 0; fi
-if [[ "${JSTUB_SLOW:-0}" -eq 1 ]]; then for i in $(seq 1 5); do echo "EXPORT_LINE_$i"; sleep 0.1; done
+if [[ "${JSTUB_SLOW:-0}" -eq 1 ]]; then for i in $(seq 1 60); do echo "EXPORT_LINE_$i"; sleep 0.1; done
 else echo "STUB_EXPORT_LINE_1"; echo "STUB_EXPORT_LINE_2"; fi
 exit "${JSTUB_EXPORT_RC:-0}"
 EOF
@@ -123,8 +123,9 @@ else
 fi
 
 # T2: BackupDir swap mid-export (slow stub journalctl + include-only, 12 boots).
-# The whole export is ONE writer stream: swapping BackupDir for a symlink to
-# a victim dir mid-run must not redirect a single byte. Uses the REAL setpriv.
+# The whole export is ONE writer stream, and the selection is IGNORED (S1):
+# swapping BackupDir for a symlink to a victim dir mid-run must not redirect
+# a single byte. Uses the REAL setpriv.
 if [[ ! -x /usr/bin/setpriv ]]; then
     t_skip "journal-swap-victim-empty" "no setpriv"
     t_skip "journal-swap-orig-complete" "no setpriv"
@@ -153,6 +154,7 @@ else
     SWAP_RC=$?
     assert_eq "journal-swap-exit" "0" "$SWAP_RC"
     assert_eq "journal-swap-did-swap" "1" "$SWAPPED"
+    assert_contains "journal-swap-selection-ignored" "$(cat "$SWAP_OUT")" "not honored"
     VICTIM_LINES=$(find "$SWAPD/victim" -name '*.export' -exec cat {} + 2>/dev/null | wc -l)
     assert_eq "journal-swap-victim-empty" "0" "$VICTIM_LINES"
     ORIG_LINES=$(find "$SWAPD/bk.orig" -name '*.export' -exec cat {} + 2>/dev/null | grep -c EXPORT_LINE_ || true)

@@ -39,3 +39,19 @@ assert_contains "trash-real-summary" "$(cat "$T_OUT")" "Trash:"
 CFG0=$(make_config EmptyTrash0 '{"MinAgeDays": 0}')
 run_case EmptyTrash --config-path "$CFG0" --dry-run
 assert_eq "trash-zero-means-all" "1" "$(dryrun_count Delete)"
+
+# S1: a checked Skip row (younger than MinAgeDays) must survive a confirmed
+# subset run — the real branch re-derives the age verdict instead of trusting
+# the selection (was: permanently deleted despite "would be skipped").
+seed_trashed old2.txt 5
+seed_trashed young.txt 0
+CFG_INC=$(make_config EmptyTrashInc '{"MinAgeDays": 1}')
+run_case EmptyTrash --config-path "$CFG_INC" --dry-run
+grep '^DRYRUN: ' "$T_OUT" | sed 's/^DRYRUN: //' | jq -r .target > "$T_SCRATCH/trash.targets"
+run_case EmptyTrash --config-path "$CFG_INC" --include-only-file "$T_SCRATCH/trash.targets"
+assert_eq "trash-inc-exit" "0" "$T_RC"
+assert_file_gone "trash-inc-deletes-old" "$TRASH/files/old2.txt"
+assert_file_gone "trash-inc-deletes-old-info" "$TRASH/info/old2.txt.trashinfo"
+assert_file_exists "trash-inc-keeps-young-skip" "$TRASH/files/young.txt"
+assert_file_exists "trash-inc-keeps-young-info" "$TRASH/info/young.txt.trashinfo"
+assert_contains "trash-inc-skip-warn" "$(cat "$T_OUT")" "younger than"

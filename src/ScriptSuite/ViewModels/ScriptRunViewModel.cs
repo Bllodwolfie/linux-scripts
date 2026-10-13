@@ -51,6 +51,15 @@ public partial class ScriptRunViewModel : ViewModelBase
 
     public ObservableCollection<RunSelectionItem> Selections { get; } = new();
     public ObservableCollection<string> LogLines { get; } = new();
+    /// <summary>Non-item preview lines (Rule, WARNs, export plan): the dry-run
+    /// result's log output minus the per-item rows already shown as
+    /// checkboxes. Rendered in the preview pane so the user sees retention,
+    /// warnings and the export destination BEFORE Confirm.</summary>
+    public ObservableCollection<string> PreviewNotes { get; } = new();
+
+    /// <summary>False for global-effect scripts (ClearJournal): rows render
+    /// informational, Confirm needs no selection, selection never narrows.</summary>
+    public bool SelectionEnabled => _manifest.SupportsSelection;
 
     /// <summary>Badge style-class predicates for the outcome line
     /// (App.axaml badge-* styles follow the theme live).</summary>
@@ -119,9 +128,17 @@ public partial class ScriptRunViewModel : ViewModelBase
             _executor.GetDryRunItems(_manifest.Id, _configPath));
         foreach (var item in items)
         {
-            var row = new RunSelectionItem(item);
+            var row = new RunSelectionItem(item) { Selectable = SelectionEnabled };
             row.PropertyChanged += OnSelectionChanged;
             Selections.Add(row);
+        }
+        PreviewNotes.Clear();
+        foreach (var line in result.Logs)
+        {
+            // Per-item rows already render as checkboxes; everything else
+            // (Rule, WARNs, export plan, summaries) belongs in the notes.
+            if (line.StartsWith("OUTPUT: Action=", StringComparison.Ordinal)) continue;
+            PreviewNotes.Add(line);
         }
         if (items.Count == 0 && result.Outcome == RunOutcome.Failed)
         {
@@ -149,7 +166,7 @@ public partial class ScriptRunViewModel : ViewModelBase
         int sel = Selections.Count(s => s.IsChecked);
         SelectionCountText = $"{sel} of {Selections.Count} item(s) selected";
         ConfirmEnabled = CurrentPhase is Phase.Preview or Phase.Finished
-            && sel > 0 && !IsRunning;
+            && !IsRunning && (!SelectionEnabled || sel > 0);
     }
 
     [RelayCommand]
@@ -159,7 +176,32 @@ public partial class ScriptRunViewModel : ViewModelBase
     public async Task ConfirmAsync()
     {
         if (IsRunning) return;
-        var includeOnly = Selections.Where(s => s.IsChecked).Select(s => s.Target).ToList();
+        List<string> includeOnly;
+        if (!SelectionEnabled)
+        {
+            // Global-effect script: the preview is informational, selection
+            // never narrows (ClearJournal ignores --include-only-file).
+            includeOnly = new List<string>();
+        }
+        else
+        {
+            var checkedRows = Selections.Where(s => s.IsChecked).ToList();
+            if (checkedRows.Count == 0) return; // nothing checked (UI disables Confirm too)
+            // Defence in depth (S1): Skip rows must never reach the include
+            // file for any script — the scripts re-derive their verdicts,
+            // but the transport must not contradict the preview either.
+            includeOnly = checkedRows.Where(s => s.Item.Action != "Skip")
+                .Select(s => s.Target).ToList();
+            if (checkedRows.Count > 0 && includeOnly.Count == 0)
+            {
+                // Only Skip rows checked: nothing actionable. Honest no-op —
+                // no spawn, no history (nothing ran); stay in Preview.
+                StatusText = "Nothing to do — every checked row is Skip.";
+                _marshal(() => LogLines.Add(
+                    "Nothing to do — every checked row is Skip; nothing was started."));
+                return;
+            }
+        }
         await RunAsync(includeOnly);
     }
 

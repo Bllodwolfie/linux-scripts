@@ -5,6 +5,7 @@
   "category": "System",
   "requiresAdmin": true,
   "supportsDryRun": true,
+  "supportsSelection": false,
   "scriptPath": "scripts/ClearJournal/ClearJournal.sh",
   "fields": [
     {

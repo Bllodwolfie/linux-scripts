@@ -49,6 +49,10 @@ public static class Stage8SelfTest
             Check(sel.IsChecked, "8a selection checked by default");
             Check(sel.ActionDisplay == "Delete", "8a selection action display");
 
+            // --- S1: manifest selection flags (global-effect scripts opt out) ---
+            Check(!catalog.Find("ClearJournal")!.SupportsSelection, "8a clearjournal no-selection");
+            Check(catalog.Find("TempCleanup")!.SupportsSelection, "8a temp cleanup selectable");
+
             // --- executor cancellation (sleeper fixture, never touches real scripts) ---
             Directory.CreateDirectory(Path.Combine(scratch, "manifests"));
             File.WriteAllText(Path.Combine(scratch, "sleeper.sh"), "#!/bin/bash\nsleep 30\n");
@@ -106,6 +110,25 @@ public static class Stage8SelfTest
                 Check(true, "8a confirm disabled on empty preview (run skipped)");
             }
 
+            // --- S1: all-Skip selection confirms to a no-op (Skip rows must
+            // --- never reach the include file; nothing spawns, no history) ---
+            Directory.CreateDirectory(Path.Combine(scratch, "shots"));
+            File.WriteAllText(Path.Combine(scratch, "shots", "old.png"), "x");
+            File.SetLastWriteTime(Path.Combine(scratch, "shots", "old.png"), DateTime.Now.AddDays(-5));
+            File.WriteAllText(AppPaths.ConfigPathFor("ScreenshotsCleanup"),
+                "{\"TargetFolder\": \"" + Path.Combine(scratch, "shots").Replace("\\", "\\\\") + "\", \"CutoffDays\": 1, \"IgnorePatterns\": [\"*.png\"]}");
+            var skipVm = new ScriptRunViewModel(catalog.Find("ScreenshotsCleanup")!, executor, elevation,
+                consents, history, AppPaths.ConfigPathFor("ScreenshotsCleanup"), direct);
+            skipVm.LoadAsync().GetAwaiter().GetResult();
+            Check(skipVm.CurrentPhase == ScriptRunViewModel.Phase.Preview, "8a skip preview phase");
+            Check(skipVm.Selections.Count == 1 && skipVm.Selections[0].Item.Action == "Skip"
+                && skipVm.Selections[0].IsChecked, "8a skip row previewed checked");
+            int hSkip = history.GetRecent(100).Count;
+            skipVm.ConfirmAsync().GetAwaiter().GetResult();
+            Check(skipVm.CurrentPhase == ScriptRunViewModel.Phase.Preview, "8a all-skip confirm stays in preview");
+            Check(history.GetRecent(100).Count == hSkip, "8a all-skip confirm writes no history");
+            Check(File.Exists(Path.Combine(scratch, "shots", "old.png")), "8a all-skip confirm touches nothing");
+
             // --- report-only script runs immediately ---
             File.WriteAllText(AppPaths.ConfigPathFor("SystemHealthReport"),
                 "{\"OutputDir\": \"" + Path.Combine(scratch, "reports") + "\", \"OutputFile\": \"rep.html\","
@@ -122,7 +145,14 @@ public static class Stage8SelfTest
             adminVm.LoadAsync().GetAwaiter().GetResult();
             // Preview or immediate run — either path must hit the consent gate (no pkexec spawned).
             if (adminVm.CurrentPhase == ScriptRunViewModel.Phase.Preview)
+            {
+                Check(adminVm.PreviewNotes.Count > 0, "8a clearjournal preview notes (rule/warn/export plan)");
+                Check(adminVm.PreviewNotes.Any(l => l.Contains("Rule: keep entries newer than")),
+                    "8a clearjournal rule line in preview");
+                Check(adminVm.ConfirmEnabled, "8a clearjournal confirm needs no selection");
+                Check(adminVm.Selections.All(s => !s.Selectable), "8a clearjournal rows informational");
                 adminVm.ConfirmAsync().GetAwaiter().GetResult();
+            }
             Check(adminVm.StatusText.Contains("I understand the risks"), "8a admin blocked without consent");
             Check(history.GetRecent(100).Count == hAdmin, "8a blocked admin writes no history");
 

@@ -8,7 +8,10 @@
 # version's "never clear what you couldn't back up" rule, a failed export
 # aborts the run BEFORE any vacuum. Vacuum itself is retention-global
 # (--vacuum-time/--vacuum-size); there is no per-boot deletion primitive, so
-# --include-only narrows the EXPORT only, with one WARN saying so.
+# per-boot selections are IGNORED (warned): the export is always one stream
+# covering everything the vacuum can delete (--until cutoff; whole journal
+# when a size cap is set, since oldest-first deletion order is
+# journald-internal).
 #
 # Scope=user vacuums the user's own journal (no privilege needed).
 # Scope=system (default, like the Windows "all logs" default) requires root:
@@ -239,31 +242,47 @@ is_old_boot() { # epoch
     LC_ALL=C awk -v n="$NOW_EPOCH" -v e="$1" -v d="$RET_DAYS" 'BEGIN{exit !((n - e)/86400 >= d)}'
 }
 
-# Include-only narrows the EXPORT (per-boot `journalctl -b`); the vacuum
-# itself is retention-global and cannot honor deselection. One WARN, once.
-ONLY_ACTIVE=0
-ONLY_LIST=()
-if [[ -n "$INCLUDE_ONLY_FILE" && -f "$INCLUDE_ONLY_FILE" ]]; then
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ -z "$line" ]] && continue
-        ONLY_LIST+=("$line")
-    done < "$INCLUDE_ONLY_FILE"
-    [[ ${#ONLY_LIST[@]} -gt 0 ]] && ONLY_ACTIVE=1
+# Include-only is accepted for CLI compatibility but NEVER honored here:
+# the effect is retention-global (there is no per-boot deletion primitive),
+# so any selection would lie. The app no longer sends one for this script.
+if [[ -n "$INCLUDE_ONLY_FILE" && -s "$INCLUDE_ONLY_FILE" ]]; then
+    warn "Per-boot selections are not honored for ClearJournal (the vacuum is retention-global); running the full retention export."
 fi
-in_only() { # target
-    local t="$1" o
-    for o in ${ONLY_LIST[@]+"${ONLY_LIST[@]}"}; do [[ "$o" == "$t" ]] && return 0; done
-    return 1
-}
 
 DU_BEFORE=$(disk_usage)
+
+# Export plan (preview honesty, S1): stream exactly what the real run would
+# export and count entries + bytes in one pass, discarded. A size cap forces
+# a whole-journal backup (see the real branch: oldest-first deletion order
+# is journald-internal and cannot be replicated exactly). Never fails the
+# preview: unreadable journals degrade to "unknown", never to a lie.
+EXP_FILTER=(--until "$CUTOFF_STR")
+EXP_SCOPE_NOTE=""
+if [[ -n "$VSIZE" ]]; then
+    EXP_FILTER=()
+    EXP_SCOPE_NOTE=" (size cap $VSIZE set: whole-journal backup)"
+fi
+EXP_N="unknown"; EXP_MB="unknown"
+if EXP_TMP_N=$(mktemp 2>/dev/null) && EXP_TMP_B=$(mktemp 2>/dev/null); then
+    if "${JCTL[@]}" "${EXP_FILTER[@]}" -o export 2>/dev/null \
+        | tee >(grep -a -c '^__REALTIME_TIMESTAMP=' >"$EXP_TMP_N" 2>/dev/null) 2>/dev/null \
+        | wc -c >"$EXP_TMP_B" 2>/dev/null; then
+        wait 2>/dev/null
+        EXP_N=$(cat -- "$EXP_TMP_N" 2>/dev/null || echo unknown)
+        EXP_B=$(cat -- "$EXP_TMP_B" 2>/dev/null || echo unknown)
+        [[ "$EXP_N" =~ ^[0-9]+$ ]] || EXP_N="unknown"
+        if [[ "$EXP_B" =~ ^[0-9]+$ ]]; then
+            EXP_MB=$(LC_ALL=C awk -v b="$EXP_B" 'BEGIN{printf "%.1f", b/1048576}')
+        fi
+    fi
+    rm -f -- "$EXP_TMP_N" "$EXP_TMP_B"
+fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
     del_n=0; skip_n=0
     for b in ${CLEAN_BOOTS[@]+"${CLEAN_BOOTS[@]}"}; do
         id="${b%% *}"; ep="${b##* }"
         target="boot $id ($(boot_date "$ep"))"
-        if [[ "$ONLY_ACTIVE" -eq 1 ]] && ! in_only "$target"; then continue; fi
         if is_old_boot "$ep"; then
             del_n=$(( del_n + 1 ))
             dryrun_item "Clear" "$target" "entries before $CUTOFF_STR; would be exported to $BACKUP_DIR, then vacuumed"
@@ -274,14 +293,28 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     done
     printf '%s\n' "Journal dry-run: $del_n boot(s) older than $VTIME would be vacuumed (disk usage: $DU_BEFORE)."
     printf '%s\n' "$RULE_LINE; vacuum would delete older archived journals."
+    printf '%s\n' "Export destination: $BACKUP_DIR/journal-$SCOPE-<timestamp>-<pid>-<random>.export"
+    printf '%s\n' "Export plan: $EXP_N entries (~$EXP_MB MB)$EXP_SCOPE_NOTE; then vacuum deletes archived journals older than $CUTOFF_STR."
+    if [[ "$del_n" -eq 0 && -z "$VSIZE" ]]; then
+        printf '%s\n' "Nothing older than $VTIME: nothing would be exported or deleted."
+    elif [[ "$del_n" -eq 0 ]]; then
+        printf '%s\n' "No entries older than $VTIME, but the size cap $VSIZE may still vacuum oldest archived journals (covered by the whole-journal backup)."
+    fi
     exit 0
 fi
 
 # --- real run: export first (Windows "never clear what you couldn't back up"),
-# --- vacuum second. Export scope: retention window, or selected boots only.
-if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
-    warn "Vacuum applies retention-globally to all boots; the selection scoped the export backup only."
-fi
+# --- vacuum second. S1 INVARIANT: ONE export covering everything the vacuum
+# --- can delete — the same --until cutoff for the time vacuum. There is no
+# --- per-boot deletion primitive, so per-boot selections are ignored (warned
+# --- above): exporting a subset while vacuuming globally deleted data the
+# --- preview marked Skip (2026-10-12: a 215 MB full-journal export at a
+# --- 365-day cutoff that matched nothing).
+# --- Size cap: --vacuum-size drops oldest archived journals first down to the
+# --- cap — an order set by journald internals (file seqnums/rotation state)
+# --- the script cannot replicate exactly. The only computable superset that
+# --- provably covers the deletion set is the whole journal, so a size cap
+# --- forces a whole-journal backup (stated loudly, cost and all).
 STAMP=$(date '+%Y%m%d_%H%M%S')
 # Unpredictable name (H-7: seconds-only STAMP let an attacker pre-plant the
 # export symlink).
@@ -312,39 +345,27 @@ if ! run_as_writer mkdir -p -- "$BACKUP_DIR" 2>/dev/null; then
     error "Cannot create BackupDir $BACKUP_DIR — aborting before any vacuum."
     exit 1
 fi
-# One writer stream for the whole export (both branches): the path is opened
-# exactly once, so a mid-run BackupDir swap cannot redirect later writes.
-# Per-boot export failures ride stderr (stdout IS the export stream) and are
-# re-emitted as WARNs after the pipe — never into the file. PIPESTATUS keeps
-# journalctl's status (left) apart from the writer's (right): export failure
-# still aborts before any vacuum, writer failure (plant/perms) too.
-EXP_ERR=$(mktemp) || { error "Cannot create temp file — aborting before any vacuum."; exit 1; }
-if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
-    {
-        for t in ${ONLY_LIST[@]+"${ONLY_LIST[@]}"}; do
-            bid="${t#boot }"; bid="${bid%% *}"
-            "${JCTL[@]}" -b "$bid" -o export 2>/dev/null || echo "EXPORT_FAILED $t" >&2
-        done
-    } 2>"$EXP_ERR" | run_as_writer sh -c 'set -C; exec cat > "$1"' _ "$EXPORT" 2>/dev/null
-    pl=("${PIPESTATUS[@]}")
+# One writer stream for the whole export: the path is opened exactly once,
+# so a mid-run BackupDir swap cannot redirect later writes. Export failure
+# (journalctl OR writer — PIPESTATUS keeps the two apart) aborts before any
+# vacuum: a missing or partial backup must never precede deletion.
+if [[ -n "$VSIZE" ]]; then
+    warn "VacuumSize $VSIZE caps total size (oldest archived journals first); backing up the whole journal so the vacuum cannot delete anything unexported."
+    EXP_FILTER=()
 else
-    "${JCTL[@]}" --until "$CUTOFF_STR" -o export 2>/dev/null | run_as_writer sh -c 'set -C; exec cat > "$1"' _ "$EXPORT" 2>/dev/null
-    pl=("${PIPESTATUS[@]}")
+    EXP_FILTER=(--until "$CUTOFF_STR")
 fi
+"${JCTL[@]}" "${EXP_FILTER[@]}" -o export 2>/dev/null | run_as_writer sh -c 'set -C; exec cat > "$1"' _ "$EXPORT" 2>/dev/null
+pl=("${PIPESTATUS[@]}")
 if [[ "${pl[1]}" -ne 0 ]]; then
     error "Cannot create export $EXPORT exclusively (already exists?) — aborting before any vacuum."
-    rm -f -- "$EXP_ERR"
     exit 1
 fi
-if [[ "$ONLY_ACTIVE" -eq 0 && "${pl[0]}" -ne 0 ]]; then
+if [[ "${pl[0]}" -ne 0 ]]; then
     error "Pre-vacuum export failed — aborting before any vacuum."
-    rm -f -- "$EXPORT" "$EXP_ERR"
+    rm -f -- "$EXPORT"
     exit 1
 fi
-while IFS= read -r ef || [[ -n "$ef" ]]; do
-    [[ "$ef" == EXPORT_FAILED* ]] && warn "Export of ${ef#EXPORT_FAILED } failed — continuing with the remaining selection."
-done < "$EXP_ERR"
-rm -f -- "$EXP_ERR"
 # An empty export is legitimate (nothing in scope to preserve) but must never
 # look like a silent failure: say so explicitly.
 if [[ ! -s "$EXPORT" ]]; then

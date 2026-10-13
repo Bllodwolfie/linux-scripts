@@ -81,14 +81,39 @@ public static class Stage3SelfTest
                 Check(Snapshot(filesDir).IsSupersetOf(initialFiles) && Snapshot(infoDir).IsSupersetOf(initialInfo),
                     "filtered run preserved every pre-existing trash item");
 
+                // S1 (2026-10-12): a confirmed Skip pair must SURVIVE — the real
+                // branch re-derives the age verdict instead of trusting the
+                // selection (previously: permanently deleted despite "would
+                // be skipped"). Narrowing still works (proven below).
                 var only = executor.Execute("EmptyTrash", config7, dryRun: false,
                     includeOnly: new[] { freshTarget, nodateTarget });
-                Check(only.Outcome == RunOutcome.Success
-                        && !PairPresent(filesDir, infoDir, testPairs[1])
-                        && !PairPresent(filesDir, infoDir, testPairs[2]),
-                    "include-only run deleted the 2 confirmed pairs");
+                Check(only.Outcome == RunOutcome.Warning
+                        && PairPresent(filesDir, infoDir, testPairs[1])
+                        && PairPresent(filesDir, infoDir, testPairs[2]),
+                    "include-only run keeps the 2 confirmed Skip pairs");
+                Check(only.Logs.Any(l => l.Contains("younger than 7 days")),
+                    "include-only run warns for kept Skip pairs");
+                // Probes served their purpose: remove our own pairs directly
+                // (the run correctly refuses to delete them), then prove
+                // nothing else changed.
+                foreach (var b in new[] { testPairs[1], testPairs[2] })
+                {
+                    TryDelete(Path.Combine(filesDir, b));
+                    TryDelete(Path.Combine(infoDir, b + ".trashinfo"));
+                }
                 Check(SetsEqual(Snapshot(filesDir), initialFiles) && SetsEqual(Snapshot(infoDir), initialInfo),
                     "user trash identical after include-only run");
+                // Narrowing proof: confirm only a freshly-trashed old pair.
+                string old2Src = WriteTempFile(tag + "old2.tmp");
+                GioTrash(old2Src);
+                testPairs.Add(FindInfo(filesDir, infoDir, old2Src));
+                Backdate(infoDir, testPairs[3], daysAgo: 10);
+                var onlyOld = executor.Execute("EmptyTrash", config7, dryRun: false,
+                    includeOnly: new[] { old2Src });
+                Check(onlyOld.Outcome == RunOutcome.Success
+                        && !PairPresent(filesDir, infoDir, testPairs[3])
+                        && SetsEqual(Snapshot(filesDir), initialFiles) && SetsEqual(Snapshot(infoDir), initialInfo),
+                    "include-only run deletes the confirmed old pair, keeps the rest");
                 testPairs.Clear();
 
                 // --- Phase B: unfiltered MinAgeDays=0 full clear (user items moved

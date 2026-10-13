@@ -53,7 +53,8 @@
                                     Background="{DynamicResource Brush.Background.Card}"
                                     Padding="8,6">
                                 <StackPanel Spacing="2">
-                                    <CheckBox IsChecked="{Binding IsChecked}">
+                                    <CheckBox IsChecked="{Binding IsChecked}"
+                                              IsVisible="{Binding Selectable}">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <TextBlock Text="{Binding ActionDisplay}"
                                                        FontWeight="SemiBold" FontSize="11" />
@@ -61,6 +62,13 @@
                                                        TextWrapping="Wrap" />
                                         </StackPanel>
                                     </CheckBox>
+                                    <StackPanel Orientation="Horizontal" Spacing="8"
+                                                IsVisible="{Binding !Selectable}">
+                                        <TextBlock Text="{Binding ActionDisplay}"
+                                                   FontWeight="SemiBold" FontSize="11" />
+                                        <TextBlock Text="{Binding Target}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
                                     <TextBlock Text="{Binding Detail}" FontSize="12"
                                                Opacity="0.7" Margin="24,2,0,0"
                                                TextWrapping="Wrap" />
@@ -71,6 +79,15 @@
                 </ListBox>
                 <TextBlock Text="{Binding SelectionCountText}" FontSize="13"
                            Opacity="0.7" />
+                <ItemsControl ItemsSource="{Binding PreviewNotes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" FontFamily="monospace"
+                                       FontSize="12" TextWrapping="Wrap"
+                                       Opacity="0.85" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </StackPanel>
             <TextBlock Text="{Binding StatusText}" FontSize="16"
                        FontWeight="SemiBold"
