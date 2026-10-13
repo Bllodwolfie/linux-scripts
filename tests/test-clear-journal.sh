@@ -69,6 +69,11 @@ cat > "$STUBBIN/setpriv" <<'EOF'
 # Print-only stub: records argv, optionally execs the real setpriv.
 printf '%s\n' "$*" >> "${JSTUB_SETPRIV_LOG:-/dev/null}"
 if [[ "${JSTUB_SETPRIV_EXEC:-0}" -eq 1 ]]; then exec /usr/bin/setpriv "$@"; fi
+# Print-only mode: nothing downstream reads stdin, so hold it open until EOF
+# — otherwise a piped writer (stub journalctl export) takes SIGPIPE when this
+# reader wins the startup race and exits first. Skipped on a terminal stdin
+# so direct invocations (mkdir) can never block waiting for input.
+[[ -t 0 ]] || cat >/dev/null
 exit 0
 EOF
 chmod +x "$STUBBIN/setpriv"

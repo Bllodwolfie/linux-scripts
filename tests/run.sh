@@ -51,7 +51,7 @@ while IFS= read -r f; do
             FAIL*) fail=$(( fail + 1 )) ;;
             SKIP*) skip=$(( skip + 1 )) ;;
         esac
-    done < <(bash "$f")
+    done < <(bash "$f" </dev/null)
 done < <(find "$HERE" -maxdepth 1 -name 'test-*.sh' | sort)
 
 printf 'TOTAL pass=%d fail=%d skip=%d scratch=%s\n' "$pass" "$fail" "$skip" "$T_SCRATCH"

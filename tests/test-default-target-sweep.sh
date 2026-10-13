@@ -8,9 +8,9 @@
 source "$(dirname "$0")/lib.sh"
 
 export HOME=/home/timj USER=timj
-SWEEP=/home/timj/.cache/ss-sweep
+SWEEP=/home/timj/.cache/ss-sweep-$$
 mkdir -p "$SWEEP"
-trap 'rm -rf -- "$SWEEP" /home/timj/ss-sweep-dl /home/timj/ss-sweep-sh /home/timj/ss-sweep-ef' EXIT
+trap 'rm -rf -- "$SWEEP" /home/timj/ss-sweep-dl-$$ /home/timj/ss-sweep-sh-$$ /home/timj/ss-sweep-ef-$$' EXIT
 
 no_refusal() { # name outfile
     if grep -Eq "protected system path|system-critical root" "$2"; then t_fail "$1" "false positive on real-shaped path"; else t_pass "$1"; fi
@@ -30,8 +30,8 @@ CFG=$(make_config SweepDL '{"SourceDir":"/home/timj/Downloads","CutoffDays":365,
 run_case DownloadsCleanup --config-path "$CFG" --dry-run
 assert_eq "sweep-dl-dry-exit" "0" "$T_RC"; no_refusal "sweep-dl-dry-no-refusal" "$T_OUT"
 # ...plus real on a fresh real-shaped dir.
-rm -rf /home/timj/ss-sweep-dl; mkdir -p /home/timj/ss-sweep-dl
-CFG=$(make_config SweepDLR '{"SourceDir":"/home/timj/ss-sweep-dl","CutoffDays":1,"IgnorePatterns":[],"Categories":{},"AdvancedRules":{}}')
+rm -rf /home/timj/ss-sweep-dl-$$; mkdir -p /home/timj/ss-sweep-dl-$$
+CFG=$(make_config SweepDLR '{"SourceDir":"/home/timj/ss-sweep-dl-$$","CutoffDays":1,"IgnorePatterns":[],"Categories":{},"AdvancedRules":{}}')
 run_case DownloadsCleanup --config-path "$CFG"
 assert_eq "sweep-dl-real-exit" "0" "$T_RC"; no_refusal "sweep-dl-real-no-refusal" "$T_OUT"
 
@@ -40,34 +40,34 @@ if [[ -d /home/timj/Pictures/Screenshots ]]; then SD=/home/timj/Pictures/Screens
 CFG=$(make_config SweepSH '{"TargetFolder":"'"$SD"'","CutoffDays":365,"IgnoreFolders":[]}')
 run_case ScreenshotsCleanup --config-path "$CFG" --dry-run
 assert_eq "sweep-sh-dry-exit" "0" "$T_RC"; no_refusal "sweep-sh-dry-no-refusal" "$T_OUT"
-rm -rf /home/timj/ss-sweep-sh; mkdir -p /home/timj/ss-sweep-sh
-CFG=$(make_config SweepSHR '{"TargetFolder":"/home/timj/ss-sweep-sh","CutoffDays":1,"IgnoreFolders":[]}')
+rm -rf /home/timj/ss-sweep-sh-$$; mkdir -p /home/timj/ss-sweep-sh-$$
+CFG=$(make_config SweepSHR '{"TargetFolder":"/home/timj/ss-sweep-sh-$$","CutoffDays":1,"IgnoreFolders":[]}')
 run_case ScreenshotsCleanup --config-path "$CFG"
 assert_eq "sweep-sh-real-exit" "0" "$T_RC"; no_refusal "sweep-sh-real-no-refusal" "$T_OUT"
 
 # EmptyFolderCleanup: dry + real on fresh real-shaped dirs.
-rm -rf /home/timj/ss-sweep-ef; mkdir -p /home/timj/ss-sweep-ef/empty-sub
-CFG=$(make_config SweepEF '{"TargetFolder":"/home/timj/ss-sweep-ef","CutoffDays":1,"IgnoreFolders":[]}')
+rm -rf /home/timj/ss-sweep-ef-$$; mkdir -p /home/timj/ss-sweep-ef-$$/empty-sub
+CFG=$(make_config SweepEF '{"TargetFolder":"/home/timj/ss-sweep-ef-$$","CutoffDays":1,"IgnoreFolders":[]}')
 run_case EmptyFolderCleanup --config-path "$CFG" --dry-run
 assert_eq "sweep-ef-dry-exit" "0" "$T_RC"; no_refusal "sweep-ef-dry-no-refusal" "$T_OUT"
 run_case EmptyFolderCleanup --config-path "$CFG"
 assert_eq "sweep-ef-real-exit" "0" "$T_RC"; no_refusal "sweep-ef-real-no-refusal" "$T_OUT"
 
 # EmptyTrash: real-shaped XDG root under /home/timj, one old file, dry + real.
-export XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg
+export XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg-$$
 mkdir -p "$XDG_DATA_HOME"
 : > "$SWEEP/old.txt"; touch -d '5 days ago' -- "$SWEEP/old.txt"
 export XDG_DATA_HOME="$T_SCRATCH/data"
 if command -v gio >/dev/null 2>&1; then
-    export XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg
+    export XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg-$$
     gio trash -- "$SWEEP/old.txt" 2>/dev/null || true
     export XDG_DATA_HOME="$T_SCRATCH/data"
     CFG=$(make_config SweepTR '{"MinAgeDays":1}')
-    XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg run_case EmptyTrash --config-path "$CFG" --dry-run
+    XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg-$$ run_case EmptyTrash --config-path "$CFG" --dry-run
     assert_eq "sweep-tr-dry-exit" "0" "$T_RC"; no_refusal "sweep-tr-dry-no-refusal" "$T_OUT"
-    XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg run_case EmptyTrash --config-path "$CFG"
+    XDG_DATA_HOME=/home/timj/.cache/ss-sweep-xdg-$$ run_case EmptyTrash --config-path "$CFG"
     assert_eq "sweep-tr-real-exit" "0" "$T_RC"; no_refusal "sweep-tr-real-no-refusal" "$T_OUT"
-    rm -rf /home/timj/.cache/ss-sweep-xdg
+    rm -rf /home/timj/.cache/ss-sweep-xdg-$$
 else
     t_skip "sweep-trash" "missing command: gio"
 fi
