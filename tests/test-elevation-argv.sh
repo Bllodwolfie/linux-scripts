@@ -81,15 +81,90 @@ printf '{"ClearJournal": true}' > "$HOME/.config/scriptsuite/risk-consents.json"
 # export is honestly empty -> Warning, not Success. What this proves is the
 # accept path: exit 0, result transport, script executed (ExitCode 0).
 OLDEST=$(journalctl --user --list-boots --no-pager 2>/dev/null | awk 'NF>=4 && $1 != "IDX" {print $3, $4}' | head -n 1)
-if [[ -z "$OLDEST" ]]; then t_skip "elev-ok" "no user journal boots"; exit 0; fi
-OLD_EP=$(date -d "$OLDEST" +%s 2>/dev/null || echo 0)
-RET_DAYS=$(( ( $(date +%s) - OLD_EP ) / 86400 + 30 ))
-[[ "$RET_DAYS" -lt 30 ]] && RET_DAYS=30
-printf '{"Scope":"user","VacuumTime":"%sd","VacuumSize":"","BackupDir":"%s/backups"}' "$RET_DAYS" "$T_SCRATCH" > "$GOODCFG"
+if [[ -z "$OLDEST" ]]; then
+    t_skip "elev-ok" "no user journal boots"
+else
+    OLD_EP=$(date -d "$OLDEST" +%s 2>/dev/null || echo 0)
+    RET_DAYS=$(( ( $(date +%s) - OLD_EP ) / 86400 + 30 ))
+    [[ "$RET_DAYS" -lt 30 ]] && RET_DAYS=30
+    printf '{"Scope":"user","VacuumTime":"%sd","VacuumSize":"","BackupDir":"%s/backups"}' "$RET_DAYS" "$T_SCRATCH" > "$GOODCFG"
+    printf '[]' > "$RT/empty.include.json"
+    child --elevated-run ClearJournal --config-path "$GOODCFG" --result-path "$(G 8)" --live-log "$(G 8).live.log" --include-only "$RT/empty.include.json"
+    assert_eq "elev-ok-exit" "0" "$T_RC"
+    assert_file_exists "elev-ok-result" "$(G 8)"
+    assert_contains "elev-ok-executed" "$(cat "$(G 8)")" '"ExitCode": 0'
+    assert_contains "elev-ok-warning" "$(cat "$(G 8)")" '"Outcome": "Warning"'
+    assert_contains "elev-ok-empty-export" "$(cat "$(G 8)")" "export is empty"
+fi
+
+# --- G-7 gaps: --validate-elevated is the print-only validator entrypoint
+# --- (ACCEPT exit 0 / refused exit 2, no side effects). Forced privileged
+# --- tier via the same hook, so confinement applies. ---
+printf '{"ClearJournal": true}' > "$HOME/.config/scriptsuite/risk-consents.json"
 printf '[]' > "$RT/empty.include.json"
-child --elevated-run ClearJournal --config-path "$GOODCFG" --result-path "$(G 8)" --live-log "$(G 8).live.log" --include-only "$RT/empty.include.json"
-assert_eq "elev-ok-exit" "0" "$T_RC"
-assert_file_exists "elev-ok-result" "$(G 8)"
-assert_contains "elev-ok-executed" "$(cat "$(G 8)")" '"ExitCode": 0'
-assert_contains "elev-ok-warning" "$(cat "$(G 8)")" '"Outcome": "Warning"'
-assert_contains "elev-ok-empty-export" "$(cat "$(G 8)")" "export is empty"
+
+validate() { # args... -> sets T_RC, captures to T_OUT
+    T_OUT="$T_SCRATCH/out-$(date +%s%N).log"
+    dotnet "$DLL" --validate-elevated "$@" > "$T_OUT" 2>&1
+    T_RC=$?
+}
+
+# 9. missing --include-only file aborts, never widens (G-7).
+validate ClearJournal --config-path "$GOODCFG" --result-path "$(G 9)" --include-only "$RT/does-not-exist.include.json"
+assert_eq "elev-missing-inc-exit" "2" "$T_RC"
+assert_contains "elev-missing-inc-reason" "$(cat "$T_OUT")" "does not exist"
+assert_file_gone "elev-missing-inc-no-result" "$(G 9)"
+
+# 10. null entry in the include array aborts (G-7 strict JSON).
+printf '["/home/somewhere/x",null]' > "$RT/null.include.json"
+validate ClearJournal --config-path "$GOODCFG" --result-path "$(G 10)" --include-only "$RT/null.include.json"
+assert_eq "elev-null-inc-exit" "2" "$T_RC"
+assert_contains "elev-null-inc-reason" "$(cat "$T_OUT")" "include-only"
+assert_file_gone "elev-null-inc-no-result" "$(G 10)"
+
+# 11. valid JSON outside the runtime dirs is refused in the privileged tier.
+if VTDIR=$(mktemp -d /var/tmp/scriptsuite-inc-XXXXXX 2>/dev/null); then
+    printf '["/home/somewhere/x"]' > "$VTDIR/outside.include.json"
+    validate ClearJournal --config-path "$GOODCFG" --result-path "$(G 11)" --include-only "$VTDIR/outside.include.json"
+    assert_eq "elev-outside-inc-exit" "2" "$T_RC"
+    assert_contains "elev-outside-inc-reason" "$(cat "$T_OUT")" "runtime dirs"
+    assert_file_gone "elev-outside-inc-no-result" "$(G 11)"
+    # 12. parent-dir symlink escaping the runtime dir is refused too.
+    ln -sf "$VTDIR" "$RT/esc"
+    validate ClearJournal --config-path "$GOODCFG" --result-path "$(G 12)" --include-only "$RT/esc/outside.include.json"
+    assert_eq "elev-esc-inc-exit" "2" "$T_RC"
+    assert_contains "elev-esc-inc-reason" "$(cat "$T_OUT")" "symlink"
+    assert_file_gone "elev-esc-inc-no-result" "$(G 12)"
+    rm -rf -- "$VTDIR" "$RT/esc"
+else
+    t_skip "elev-outside-inc" "no writable dir outside runtime confinement"
+    t_skip "elev-esc-inc" "no writable dir outside runtime confinement"
+fi
+
+# 13. oversized include aborts (size cap, 1 MB).
+python3 -c "print('[' + '\"x\",'*300000 + '\"y\"]')" > "$RT/big.include.json" 2>/dev/null || \
+    { i=0; printf '[' > "$RT/big.include.json"; while [[ "$i" -lt 300000 ]]; do printf '"x",' >> "$RT/big.include.json"; i=$(( i + 1 )); done; printf '"y"]' >> "$RT/big.include.json"; }
+validate ClearJournal --config-path "$GOODCFG" --result-path "$(G 13)" --include-only "$RT/big.include.json"
+assert_eq "elev-big-inc-exit" "2" "$T_RC"
+assert_contains "elev-big-inc-reason" "$(cat "$T_OUT")" "size limit"
+assert_file_gone "elev-big-inc-no-result" "$(G 13)"
+
+# 14. trailing-symlink include is refused.
+printf '[]' > "$RT/real.include.json"
+ln -sf "$RT/real.include.json" "$RT/sym.include.json"
+validate ClearJournal --config-path "$GOODCFG" --result-path "$(G 14)" --include-only "$RT/sym.include.json"
+assert_eq "elev-sym-inc-exit" "2" "$T_RC"
+assert_contains "elev-sym-inc-reason" "$(cat "$T_OUT")" "symlink"
+assert_file_gone "elev-sym-inc-no-result" "$(G 14)"
+
+# 15. valid runtime-dir include is still ACCEPTed (parent flow unbroken).
+validate ClearJournal --config-path "$GOODCFG" --result-path "$(G 15)" --include-only "$RT/empty.include.json"
+assert_eq "elev-good-inc-exit" "0" "$T_RC"
+assert_contains "elev-good-inc-accept" "$(cat "$T_OUT")" "ACCEPT"
+
+# 16. end-to-end: --elevated-run with a missing include file refuses (exit 2,
+# no result file) instead of running unrestricted.
+child --elevated-run ClearJournal --config-path "$GOODCFG" --result-path "$(G 16)" --include-only "$RT/does-not-exist.include.json"
+assert_eq "elev-run-missing-exit" "2" "$T_RC"
+assert_contains "elev-run-missing-reason" "$(cat "$T_OUT")" "does not exist"
+assert_file_gone "elev-run-missing-no-result" "$(G 16)"

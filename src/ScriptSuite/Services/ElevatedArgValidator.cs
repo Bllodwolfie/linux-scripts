@@ -12,12 +12,14 @@ public sealed record ElevatedCaller(uint Uid, string Home);
 /// controlled when the child is invoked directly (G-1). Two tiers:
 ///   Always: known script id (G-1), elevation-eligible manifest (G-6),
 ///     caller risk consent re-checked (not just the parent), strict
-///     --include-only JSON (never widen to unrestricted, G-7).
+///     --include-only JSON (never widen to unrestricted, G-7: a named file
+///     must exist and parse — missing is abort, not opt-out).
 ///   Privileged only (real pkexec: euid 0 + PKEXEC_UID set, or the test hook
 ///     below): path confinement for --config-path/--result-path/--live-log
-///     (G-2/G-3/G-5) — realpath prefix + caller ownership + no symlinks +
-///     exclusive creates. Unprivileged direct runs (self-tests) need no
-///     confinement: the process has no privilege its caller lacks.
+///     AND --include-only (G-2/G-3/G-5) — realpath prefix + caller ownership
+///     + no symlinks + exclusive creates. Unprivileged direct runs
+///     (self-tests) need no confinement: the process has no privilege its
+///     caller lacks.
 /// Test hook SCRIPTSUITE_FORCE_PRIVILEGED_CHECK=1 forces the privileged tier
 /// with caller = (geteuid, $HOME). Strictness-only: it can never loosen a
 /// check, so it is safe to ship.</summary>
@@ -76,11 +78,19 @@ public static class ElevatedArgValidator
             throw new InvalidOperationException(
                 $"Script '{scriptId}' is not elevation-eligible (requiresAdmin=false).");
 
-        // Strict include-only in BOTH tiers: present-but-garbage aborts the
-        // run; it must never silently widen to unrestricted (G-7). Missing
-        // file = unrestricted (parent always sends one; direct runs opt out).
-        if (includeOnlyPath is not null && File.Exists(includeOnlyPath))
+        // Strict include-only in BOTH tiers: the flag names a file that must
+        // exist and parse (G-7). Present-but-garbage AND named-but-missing
+        // abort the run; neither ever silently widens to unrestricted.
+        // Omitting the flag entirely (null) is the only opt-out — the
+        // parent always sends a real file, so no legitimate flow names a
+        // missing one.
+        if (includeOnlyPath is not null)
+        {
+            if (!File.Exists(includeOnlyPath))
+                throw new InvalidOperationException(
+                    $"--include-only file '{includeOnlyPath}' does not exist — aborting, never widening to unrestricted.");
             ReadIncludeFile(includeOnlyPath);
+        }
 
         if (caller is null)
             return; // unprivileged direct run (self-tests): no privilege is
@@ -103,18 +113,34 @@ public static class ElevatedArgValidator
         ValidateOutputPath(resultPath, caller, "result");
         if (liveLogPath is not null)
             ValidateOutputPath(liveLogPath, caller, "live log");
+        // The include list is root-read in this tier, so it is confined
+        // like every other privileged input (G-2/G-3/G-5): the parent mints
+        // it under the runtime dir, so confinement never breaks that flow.
+        if (includeOnlyPath is not null)
+            ValidateExistingAuxPath(includeOnlyPath, caller, "include-only");
     }
 
     /// <summary>Reads + strictly validates an include-only file (JSON string
-    /// array, size-capped, no symlink followed). Throws on any failure.</summary>
+    /// array, size-capped, no symlink followed, no null entries). Throws on
+    /// any failure. The cap is enforced on the OPEN stream with a bounded
+    /// read (never FileInfo-first: the file could grow between the stat and
+    /// the read, and a vanished file must throw InvalidOperationException —
+    /// the refusal class — not FileNotFoundException).</summary>
     public static List<string> ReadIncludeFile(string path)
     {
-        if (new FileInfo(path).Length > MaxAuxFileBytes)
-            throw new InvalidOperationException($"Include-only file '{path}' exceeds size limit.");
         using var fs = NativeLib.OpenNoFollow(path);
+        if (fs.Length > MaxAuxFileBytes)
+            throw new InvalidOperationException($"Include-only file '{path}' exceeds size limit.");
         using var sr = new StreamReader(fs);
+        char[] buf = new char[MaxAuxFileBytes + 1];
+        int total = 0, n;
+        while (total <= MaxAuxFileBytes && (n = sr.Read(buf, total, buf.Length - total)) > 0)
+            total += n;
+        if (total > MaxAuxFileBytes)
+            throw new InvalidOperationException($"Include-only file '{path}' exceeds size limit.");
+        string text = new(buf, 0, total);
         List<string>? list;
-        try { list = JsonSerializer.Deserialize<List<string>>(sr.ReadToEnd()); }
+        try { list = JsonSerializer.Deserialize<List<string>>(text); }
         catch (JsonException ex)
         {
             throw new InvalidOperationException(
@@ -122,7 +148,43 @@ public static class ElevatedArgValidator
         }
         if (list is null)
             throw new InvalidOperationException($"--include-only file '{path}' is not a JSON string array — aborting.");
+        if (list.Any(e => e is null))
+            throw new InvalidOperationException($"--include-only file '{path}' contains a null entry — aborting, never widening to unrestricted.");
         return list;
+    }
+
+    /// <summary>Confinement for an already-existing privileged aux file (the
+    /// include list): absolute, no trailing or parent-dir symlink escape,
+    /// resolved inside the caller's runtime dirs, caller-owned (root-owned
+    /// only for the sticky system temp root, mirroring outputs).</summary>
+    private static void ValidateExistingAuxPath(string path, ElevatedCaller caller, string role)
+    {
+        if (!Path.IsPathRooted(path))
+            throw new InvalidOperationException($"Elevated {role} path '{path}' must be absolute.");
+        if (NativeLib.IsSymlink(path))
+            throw new InvalidOperationException($"Elevated {role} path '{path}' is a symlink — refusing.");
+        if (!File.Exists(path))
+            throw new InvalidOperationException($"Elevated {role} file '{path}' does not exist.");
+        var owner = NativeLib.StatOwner(path)?.Uid;
+        if (owner != caller.Uid && owner != 0)
+            throw new InvalidOperationException($"Elevated {role} file '{path}' is not owned by the calling user — refusing.");
+        string? dir = Path.GetDirectoryName(path);
+        if (dir is null || !Directory.Exists(dir))
+            throw new InvalidOperationException($"Elevated {role} directory '{dir}' does not exist.");
+        if (NativeLib.IsSymlink(dir))
+            throw new InvalidOperationException($"Elevated {role} directory '{dir}' is a symlink — refusing.");
+        string? realDir = NativeLib.RealPath(dir);
+        string runUserDir = $"/run/user/{caller.Uid}";
+        string tmpDir = Path.GetTempPath();
+        if (realDir is null || (!IsSameOrBeneath(realDir, runUserDir) && !IsSameOrBeneath(realDir, tmpDir)))
+            throw new InvalidOperationException(
+                $"Elevated {role} directory '{dir}' is outside the caller's runtime dirs — refusing.");
+        uint? dirOwner = NativeLib.StatOwner(realDir)?.Uid;
+        bool isTempRoot = string.Equals(realDir.TrimEnd(Path.DirectorySeparatorChar),
+            tmpDir.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal);
+        if (dirOwner != caller.Uid && !(isTempRoot && dirOwner == 0))
+            throw new InvalidOperationException(
+                $"Elevated {role} directory '{dir}' is not owned by the calling user — refusing.");
     }
 
     private static void ValidateConfigPath(string path, ElevatedCaller caller)

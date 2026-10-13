@@ -245,10 +245,17 @@ public sealed class PolkitElevationService
         try
         {
             // Strict re-read (validated by Program.cs before the run; a swap
-            // since then fails closed here instead of widening, G-7).
+            // or deletion since then fails closed here instead of widening,
+            // G-7: a named-but-missing file aborts, it never runs
+            // unrestricted).
             IReadOnlyList<string>? includeOnly = null;
-            if (includeOnlyPath is not null && File.Exists(includeOnlyPath))
+            if (includeOnlyPath is not null)
+            {
+                if (!File.Exists(includeOnlyPath))
+                    throw new InvalidOperationException(
+                        $"--include-only file '{includeOnlyPath}' does not exist — aborting, never widening to unrestricted.");
                 includeOnly = ElevatedArgValidator.ReadIncludeFile(includeOnlyPath);
+            }
 
             // Live log: exclusive create, single held stream. A pre-existing
             // path (plant) aborts the run — we never append through it (G-3).

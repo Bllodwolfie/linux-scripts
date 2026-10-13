@@ -55,19 +55,27 @@ if [[ -d /run/user/$(id -u) ]]; then
         if [[ "$(basename "$_PV_R")" =~ ^scriptsuite_[0-9a-f]{32}\.json$ ]]; then t_pass "prod-shape-guid"; else t_fail "prod-shape-guid" "got $(basename "$_PV_R")"; fi
         assert_eq "prod-shape-live" "$_PV_R.live.log" "$_PV_L"
         assert_eq "prod-shape-include" "$_PV_R.include.json" "$_PV_I"
+        # The parent writes the include list just before spawn (result and
+        # live-log stay absent until the child creates them), so stage the
+        # include like production does before validating.
+        printf '[]' > "$_PV_I"
         validate ClearJournal --config-path "$GOODCFG" --result-path "$_PV_R" --live-log "$_PV_L" --include-only "$_PV_I"
         assert_eq "prod-bare-runtime-accept" "0" "$T_RC"
         assert_contains "prod-bare-runtime-word" "$(cat "$T_OUT")" "ACCEPT"
+        rm -f -- "$_PV_I"
     else
         t_fail "prod-preview" "preview entrypoint failed"
     fi
-    # The literal filenames from the 21:04 pkexec journal line (files absent).
+    # The literal filenames from the 21:04 pkexec journal line (result and
+    # live-log absent; the include staged as the parent would).
     J=8374be147f6c4fb79f2bf0a7a4d8cf79
+    printf '[]' > "/run/user/$(id -u)/scriptsuite_$J.json.include.json"
     validate ClearJournal --config-path "$GOODCFG" \
         --result-path "/run/user/$(id -u)/scriptsuite_$J.json" \
         --live-log "/run/user/$(id -u)/scriptsuite_$J.json.live.log" \
         --include-only "/run/user/$(id -u)/scriptsuite_$J.json.include.json"
     assert_eq "prod-journal-names-accept" "0" "$T_RC"
+    rm -f -- "/run/user/$(id -u)/scriptsuite_$J.json.include.json"
 else
     t_skip "prodargv-a" "no /run/user/$(id -u)"
 fi
@@ -75,8 +83,10 @@ fi
 # --- B. bare /tmp fallback shape (XDG_RUNTIME_DIR unset) ---
 if preview_paths_unset_tmp; then
     assert_eq "prod-tmp-dir" "/tmp" "$(dirname "$_PV_R")"
+    printf '[]' > "$_PV_I"
     validate ClearJournal --config-path "$GOODCFG" --result-path "$_PV_R" --live-log "$_PV_L" --include-only "$_PV_I"
     assert_eq "prod-bare-tmp-accept" "0" "$T_RC"
+    rm -f -- "$_PV_I"
 else
     t_fail "prod-preview-tmp" "preview entrypoint failed"
 fi
