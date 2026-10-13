@@ -93,10 +93,21 @@ urldecode() {
 NOW_EPOCH=$(date +%s)
 
 # Internal item separator: ASCII unit separator (octal 037, non-whitespace),
-# so an EMPTY epoch field survives `read` intact. A tab delimiter cannot be
-# used here: tab is IFS whitespace, bash collapses the empty field, the size
-# shifts into the epoch slot, and dateless items look ~20733 days old.
+# so an EMPTY epoch field survives intact. (A tab delimiter cannot be used:
+# tab is IFS whitespace, bash collapses the empty field, the size shifts
+# into the epoch slot, and dateless items look ~20733 days old.)
 SEP=$(printf '\037')
+
+# Split one NUL-collected row into ROW_* fields (A-1). Plain `read` cannot
+# be used here: read is line-oriented and stops at the first newline, which
+# re-splits rows whose base/target legitimately contain newlines.
+split_row() { # row
+    local rest="$1"
+    ROW_BASE="${rest%%"$SEP"*}"; rest="${rest#*"$SEP"}"
+    ROW_TARGET="${rest%%"$SEP"*}"; rest="${rest#*"$SEP"}"
+    ROW_EPOCH="${rest%%"$SEP"*}"; rest="${rest#*"$SEP"}"
+    ROW_SIZE="$rest"
+}
 
 # Item fields for one info file: base, target, epoch-or-empty, size.
 read_trash_item() { # info-file
@@ -116,7 +127,9 @@ read_trash_item() { # info-file
         size=$(du -sb -- "$payload" 2>/dev/null | cut -f1) || size=0
         [[ "$size" =~ ^[0-9]+$ ]] || size=0
     fi
-    printf '%s%s%s%s%s%s%s\n' "$base" "$SEP" "$target" "$SEP" "$epoch" "$SEP" "$size"
+    # NUL-terminated (A-1): base/target may contain newlines (Path= %0A);
+    # newline-terminated rows split and caused false counts + orphans.
+    printf '%s%s%s%s%s%s%s\0' "$base" "$SEP" "$target" "$SEP" "$epoch" "$SEP" "$size"
 }
 
 # Old-enough test. Missing date: old enough only when MinAgeDays==0
@@ -137,13 +150,15 @@ age_days_fmt() { # epoch-or-empty decimals
         'BEGIN{printf "%.*f days old", d, (now - e) / 86400}'
 }
 
-# Collect items (sorted for stable output/preview order).
-mapfile -t ITEMS < <(
+# Collect items (sorted for stable output/preview order). NUL-delimited end
+# to end (A-1): mapfile -d '' never splits a row, and split_row (not the
+# line-oriented read) parses fields, so embedded newlines survive whole.
+mapfile -d '' -t ITEMS < <(
     if [[ -d "$INFO_DIR" ]]; then
         for info in "$INFO_DIR"/*.trashinfo; do
             [[ -e "$info" ]] || continue
             read_trash_item "$info" || continue
-        done | LC_ALL=C sort
+        done | LC_ALL=C sort -z
     fi
 )
 
@@ -155,7 +170,7 @@ in_only() { # canonical-target
 if [[ "$DRY_RUN" -eq 1 ]]; then
     del_n=0; skip_n=0; del_sz=0; skip_sz=0
     for row in ${ITEMS[@]+"${ITEMS[@]}"}; do
-        IFS="$SEP" read -r base target epoch size <<< "$row"
+        split_row "$row"; base="$ROW_BASE"; target="$ROW_TARGET"; epoch="$ROW_EPOCH"; size="$ROW_SIZE"
         canon=$(canonical "$target")
         if ! in_only "$canon"; then continue; fi
         sz=$(fmt_size "$size")
@@ -180,11 +195,30 @@ fi
 # --- real run: every deletion removes the files/ + info/ pair directly
 # --- (data first, then metadata) and verifies it is actually gone, so a run
 # --- can never report deletions that did not happen.
+# DELETE_ERR holds rm's stderr on failure for the WARN label (A-2).
+DELETE_ERR=""
 delete_pair() { # base -> 0 when both halves are gone
-    local base="$1"
-    rm -rf -- "$FILES_DIR/$base" 2>/dev/null
-    rm -f -- "$INFO_DIR/$base.trashinfo" 2>/dev/null
-    [[ ! -e "$FILES_DIR/$base" && ! -L "$FILES_DIR/$base" && ! -e "$INFO_DIR/$base.trashinfo" ]]
+    local base="$1" ferr ierr
+    DELETE_ERR=""
+    ferr=$(rm -rf -- "$FILES_DIR/$base" 2>&1) || DELETE_ERR+="files: $ferr. "
+    ierr=$(rm -f -- "$INFO_DIR/$base.trashinfo" 2>&1) || DELETE_ERR+="info: $ierr. "
+    if [[ ! -e "$FILES_DIR/$base" && ! -L "$FILES_DIR/$base" && ! -e "$INFO_DIR/$base.trashinfo" ]]; then
+        DELETE_ERR=""
+        return 0
+    fi
+    return 1
+}
+# Short cause label for a failed delete_pair (A-2): Linux rm failures are
+# permissions, read-only mounts or busy files — never "locked" (no such
+# thing for rm). Unknown errors print verbatim (locale-proof details).
+delete_cause() {
+    local e="${DELETE_ERR,,}"
+    case "$e" in
+        *"permission denied"*) printf 'Permission denied' ;;
+        *"read-only file system"*) printf 'Read-only filesystem' ;;
+        *"device or resource busy"*) printf 'In use (busy)' ;;
+        *) printf 'Failed (%s)' "$(head -n 1 <<< "${DELETE_ERR:-unknown error}" | cut -c1-120)" ;;
+    esac
 }
 
 warned=0
@@ -196,7 +230,7 @@ if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
     for key in "${!ONLY_MAP[@]}"; do
         found=""; foundepoch=""
         for row in ${ITEMS[@]+"${ITEMS[@]}"}; do
-            IFS="$SEP" read -r base target epoch size <<< "$row"
+            split_row "$row"; base="$ROW_BASE"; target="$ROW_TARGET"; epoch="$ROW_EPOCH"; size="$ROW_SIZE"
             if [[ "$(canonical "$target")" == "$key" ]]; then found="$base"; foundepoch="$epoch"; break; fi
         done
         if [[ -z "$found" ]]; then
@@ -212,7 +246,7 @@ if [[ "$ONLY_ACTIVE" -eq 1 ]]; then
         if delete_pair "$found"; then
             deleted=$(( deleted + 1 ))
         else
-            warn "Skipped locked trash item: $key"
+            warn "Could not permanently delete $key: $(delete_cause)"
             warned=$(( warned + 1 ))
         fi
     done
@@ -225,13 +259,13 @@ else
     fi
     matched=0
     for row in ${ITEMS[@]+"${ITEMS[@]}"}; do
-        IFS="$SEP" read -r base target epoch size <<< "$row"
+        split_row "$row"; base="$ROW_BASE"; target="$ROW_TARGET"; epoch="$ROW_EPOCH"; size="$ROW_SIZE"
         if ! is_old "$epoch"; then continue; fi
         matched=$(( matched + 1 ))
         if delete_pair "$base"; then
             deleted=$(( deleted + 1 ))
         else
-            warn "Skipped locked trash item: $target"
+            warn "Could not permanently delete $target: $(delete_cause)"
             warned=$(( warned + 1 ))
         fi
     done
