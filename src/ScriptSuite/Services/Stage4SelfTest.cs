@@ -199,6 +199,70 @@ public static class Stage4SelfTest
                 Check(tableOk, "IsSameOrBeneath truth table (self/child true, sibling prefixes false)");
             }
 
+            // --- 7h. rendezvous ownership handoff (C2): a root child fchowns
+            // --- result + live-log to PKEXEC_UID on the open fd; unprivileged
+            // --- round-trips skip; an untrustworthy PKEXEC_UID refuses loudly
+            // --- with no result file. Forced-root via the euid seam (fake
+            // --- owner records, never touches the kernel).
+            int noopDays2 = OldestBootPlusMarginDays(30);
+            if (noopDays2 < 0)
+            {
+                lines.Add("SKIP rendezvous handoff (no user journal boots readable)");
+            }
+            else
+            {
+                uint selfUid = NativeLib.EffectiveUid();
+                uint selfGid = NativeLib.EffectiveGid();
+                string? origPkexec = Environment.GetEnvironmentVariable("PKEXEC_UID");
+                var handoffSvc = new PolkitElevationService(catalog, new RiskConsentStore(consentPath));
+                string hCfg = WriteCfg(cfgDir, "cj-handoff.json",
+                    new { Scope = "user", VacuumTime = $"{noopDays2}d", VacuumSize = "", BackupDir = Path.Combine(cfgDir, "backups-handoff") });
+                try
+                {
+                    // Forced root, own uid: both files handed off, run proceeds.
+                    Environment.SetEnvironmentVariable("PKEXEC_UID", selfUid.ToString());
+                    var paths = ElevatedPaths.Build();
+                    File.WriteAllText(paths.IncludePath, "[]");
+                    var rec = new RecordingOwner();
+                    int hExit = handoffSvc.RunElevatedChild("ClearJournal", hCfg,
+                        paths.ResultPath, paths.LiveLogPath, paths.IncludePath, rec, () => 0);
+                    Check(hExit == 0 && rec.Calls.Count == 2
+                        && rec.Calls.TrueForAll(c => c.Uid == selfUid && c.Gid == selfGid),
+                        $"forced-root handoff owns live+result as {selfUid}:{selfGid} (exit={hExit}, calls={rec.Calls.Count})");
+                    // Bogus uid: loud refusal, no result file.
+                    Environment.SetEnvironmentVariable("PKEXEC_UID", "60000");
+                    var paths2 = ElevatedPaths.Build();
+                    File.WriteAllText(paths2.IncludePath, "[]");
+                    var rec2 = new RecordingOwner();
+                    string errCap;
+                    var origErr = Console.Error;
+                    try
+                    {
+                        using var errSw = new StringWriter();
+                        Console.SetError(errSw);
+                        int rExit = handoffSvc.RunElevatedChild("ClearJournal", hCfg,
+                            paths2.ResultPath, paths2.LiveLogPath, paths2.IncludePath, rec2, () => 0);
+                        errSw.Flush();
+                        errCap = rExit + "|" + errSw.ToString();
+                    }
+                    finally { Console.SetError(origErr); }
+                    try { if (File.Exists(paths2.LiveLogPath)) File.Delete(paths2.LiveLogPath); } catch { }
+                    Check(errCap.StartsWith("2|") && rec2.Calls.Count == 0
+                        && !File.Exists(paths2.ResultPath) && errCap.Contains("refused"),
+                        $"bogus PKEXEC_UID refused without result ({errCap.Trim().Replace('\n', ' ')})");
+                    // Unprivileged: skip path, zero handoff calls, normal exit.
+                    Environment.SetEnvironmentVariable("PKEXEC_UID", null);
+                    var paths3 = ElevatedPaths.Build();
+                    File.WriteAllText(paths3.IncludePath, "[]");
+                    var rec3 = new RecordingOwner();
+                    int uExit = handoffSvc.RunElevatedChild("ClearJournal", hCfg,
+                        paths3.ResultPath, paths3.LiveLogPath, paths3.IncludePath, rec3);
+                    Check(uExit == 0 && rec3.Calls.Count == 0 && File.Exists(paths3.ResultPath),
+                        $"unprivileged round-trip skips handoff (exit={uExit})");
+                }
+                finally { Environment.SetEnvironmentVariable("PKEXEC_UID", origPkexec); }
+            }
+
             // --- 7d. garbage include-only aborts (never widens), exit 2. ---
             {
                 string badInclude = Path.Combine(cfgDir, "child-bad.include.json");
@@ -249,6 +313,16 @@ public static class Stage4SelfTest
         string path = Path.Combine(dir, name);
         File.WriteAllText(path, JsonSerializer.Serialize(config));
         return path;
+    }
+
+    /// <summary>Test double for the rendezvous handoff: records (uid, gid)
+    /// per file instead of calling fchown — proves wiring (both files, call
+    /// order, identities) without privilege. Order is deterministic: the
+    /// child owns the live log first, the result second.</summary>
+    private sealed class RecordingOwner : IRendezvousOwner
+    {
+        public readonly List<(uint Uid, uint Gid)> Calls = new();
+        public void OwnFile(FileStream fs, uint uid, uint gid) => Calls.Add((uid, gid));
     }
 
     /// <summary>Runs the built binary as an --elevated-run child (no pkexec).

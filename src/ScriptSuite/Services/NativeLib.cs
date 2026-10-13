@@ -34,6 +34,9 @@ internal static class NativeLib
     [DllImport("libc.so.6", SetLastError = true)]
     private static extern uint geteuid();
 
+    [DllImport("libc.so.6")]
+    private static extern uint getegid();
+
     [DllImport("libc.so.6", CharSet = CharSet.Ansi, SetLastError = true)]
     private static extern int stat(string pathname, out StatBuf buf);
 
@@ -43,6 +46,12 @@ internal static class NativeLib
     [DllImport("libc.so.6", SetLastError = true)]
     private static extern int close(int fd);
 
+    [DllImport("libc.so.6", SetLastError = true)]
+    private static extern int fchown(int fd, uint owner, uint group);
+
+    [DllImport("libc.so.6")]
+    private static extern IntPtr getpwuid(uint uid);
+
     [DllImport("libc.so.6", CharSet = CharSet.Ansi)]
     private static extern IntPtr realpath(string path, IntPtr resolved);
 
@@ -50,6 +59,8 @@ internal static class NativeLib
     private static extern void free(IntPtr p);
 
     public static uint EffectiveUid() => geteuid();
+
+    public static uint EffectiveGid() => getegid();
 
     /// <summary>Canonical path with all symlinks resolved (realpath(3)).
     /// Returns null when the path cannot be resolved.</summary>
@@ -107,5 +118,28 @@ internal static class NativeLib
             throw new InvalidOperationException(
                 $"Refusing to open '{path}' (missing or is a symlink; errno={Marshal.GetLastWin32Error()}).");
         return new FileStream(new SafeFileHandle((nint)fd, ownsHandle: true), FileAccess.Read);
+    }
+
+    /// <summary>Change owner:group of an OPEN file descriptor (fchown(2) —
+    /// never path-based: no TOCTOU between validation and handoff, no
+    /// symlink race by construction). Used by the root child to hand its
+    /// O_EXCL|O_NOFOLLOW rendezvous files to the pkexec caller.</summary>
+    public static void FChown(SafeFileHandle handle, uint uid, uint gid)
+    {
+        int fd = unchecked((int)handle.DangerousGetHandle().ToInt64());
+        if (fchown(fd, uid, gid) != 0)
+            throw new InvalidOperationException(
+                $"fchown({uid},{gid}) failed (errno={Marshal.GetLastWin32Error()}).");
+    }
+
+    /// <summary>Primary gid of a uid via getpwuid(3), or null when unknown.
+    /// glibc x86-64 struct passwd: pw_gid sits at offset 20 (two pointers +
+    /// two ints precede it). Single-threaded child use only (static storage).</summary>
+    public static uint? PrimaryGid(uint uid)
+    {
+        IntPtr p = getpwuid(uid);
+        if (p == IntPtr.Zero)
+            return null;
+        return unchecked((uint)Marshal.ReadInt32(p, 20));
     }
 }

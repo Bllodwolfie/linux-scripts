@@ -4,6 +4,23 @@ using ScriptSuite.Models;
 
 namespace ScriptSuite.Services;
 
+/// <summary>Ownership handoff for the elevated rendezvous files: production
+/// fchowns the OPEN fd (never path-based — no TOCTOU, no symlink race);
+/// tests substitute a recorder. The handoff runs only when the child is
+/// really root; unprivileged round-trips skip it (files are already ours).</summary>
+public interface IRendezvousOwner
+{
+    void OwnFile(FileStream fs, uint uid, uint gid);
+}
+
+/// <summary>Production handoff: fchown(2) on the open stream's fd.</summary>
+public sealed class FdRendezvousOwner : IRendezvousOwner
+{
+    public static readonly FdRendezvousOwner Instance = new();
+    public void OwnFile(FileStream fs, uint uid, uint gid) =>
+        NativeLib.FChown(fs.SafeFileHandle!, uid, gid);
+}
+
 /// <summary>
 /// Runs admin-required scripts elevated via pkexec. The flow mirrors
 /// windows-scripts ScriptExecutor.RunElevated (runas) one-for-one, with the
@@ -194,10 +211,19 @@ public sealed class PolkitElevationService
 
     /// <summary>The elevated child's entire job: run one script's execute
     /// phase headless and write the result JSON. Returns the process exit
-    /// code (0 = transport ok; the payload carries the run outcome).</summary>
+    /// code (0 = transport ok; the payload carries the run outcome).
+    /// Rendezvous files the child creates O_EXCL|O_NOFOLLOW are fchowned to
+    /// PKEXEC_UID:primary-gid on the open fd when really root, so the
+    /// unprivileged parent can read them back; anything else (unprivileged
+    /// round-trip) skips the handoff. A root child without a trustworthy
+    /// PKEXEC_UID refuses loudly (exit 2) rather than leaving root-owned
+    /// files behind. owner/getEuid are test seams (default: production).</summary>
     public int RunElevatedChild(string scriptId, string configPath, string resultPath,
-        string? liveLogPath, string? includeOnlyPath)
+        string? liveLogPath, string? includeOnlyPath,
+        IRendezvousOwner? owner = null, Func<uint>? getEuid = null)
     {
+        uint euid = (getEuid ?? NativeLib.EffectiveUid)();
+        IRendezvousOwner rendezvousOwner = owner ?? FdRendezvousOwner.Instance;
         var payload = new Dictionary<string, object?>
         {
             ["ScriptId"] = scriptId,
@@ -216,18 +242,31 @@ public sealed class PolkitElevationService
 
             // Live log: exclusive create, single held stream. A pre-existing
             // path (plant) aborts the run — we never append through it (G-3).
+            // Root hands the fd to the caller right after create (C2), so the
+            // parent can stream it; handoff refusal deletes what we created
+            // (never anyone else's file) and aborts.
             StreamWriter? live = null;
             if (liveLogPath is not null)
             {
+                FileStream? liveFs = null;
                 try
                 {
-                    live = new StreamWriter(NativeLib.CreateExclusive(liveLogPath))
+                    liveFs = NativeLib.CreateExclusive(liveLogPath);
+                    OwnRendezvous(liveFs, liveLogPath, euid, rendezvousOwner);
+                    live = new StreamWriter(liveFs)
                     {
                         AutoFlush = true,
                     };
+                    liveFs = null; // owned by the writer now
                 }
                 catch (InvalidOperationException ex)
                 {
+                    if (liveFs is not null)
+                    {
+                        try { liveFs.Dispose(); } catch { }
+                        liveFs = null;
+                        TryDelete(liveLogPath);
+                    }
                     Console.Error.WriteLine("Elevated child refused: " + ex.Message);
                     return 2;
                 }
@@ -264,11 +303,23 @@ public sealed class PolkitElevationService
 
         // Exclusive create: never truncate a planted file, never crash (the
         // old File.WriteAllText outside try SIGABRTed on hostile paths).
+        // Root fchowns the open fd to the caller before writing (C2); a
+        // refused handoff removes what we created and exits 2 with no result
+        // file, so the parent takes the clean no-result path.
         try
         {
-            using var fs = NativeLib.CreateExclusive(resultPath);
-            using var sw = new StreamWriter(fs);
-            sw.Write(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+            using (var fs = NativeLib.CreateExclusive(resultPath))
+            {
+                try { OwnRendezvous(fs, resultPath, euid, rendezvousOwner); }
+                catch (InvalidOperationException) { TryDelete(resultPath); throw; }
+                using var sw = new StreamWriter(fs);
+                sw.Write(JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine("Elevated child refused: " + ex.Message);
+            return 2;
         }
         catch (Exception ex)
         {
@@ -276,6 +327,29 @@ public sealed class PolkitElevationService
             return 1;
         }
         return 0;
+    }
+
+    /// <summary>Hands an exclusively-created rendezvous fd to the pkexec
+    /// caller: euid==0 only; PKEXEC_UID must be numeric and must own the
+    /// rendezvous directory (else we would hand files to a stranger); the
+    /// group is the caller's primary gid. Anything untrustworthy throws
+    /// InvalidOperationException (refusal class, never a crash).</summary>
+    private static void OwnRendezvous(FileStream fs, string path, uint euid,
+        IRendezvousOwner owner)
+    {
+        if (euid != 0) return; // unprivileged round-trip: files are already ours
+        string? uidRaw = Environment.GetEnvironmentVariable("PKEXEC_UID");
+        if (!uint.TryParse(uidRaw, out uint uid))
+            throw new InvalidOperationException(
+                "running as root without a numeric PKEXEC_UID — refusing to leave root-owned rendezvous files.");
+        var st = Path.GetDirectoryName(path) is string dir ? NativeLib.StatOwner(dir) : null;
+        if (st is null || st.Value.Uid != uid)
+            throw new InvalidOperationException(
+                "PKEXEC_UID does not own the rendezvous directory — refusing to hand files to a stranger.");
+        uint gid = NativeLib.PrimaryGid(uid)
+            ?? throw new InvalidOperationException(
+                $"unknown primary group for uid {uid} — refusing to hand off with a wrong group.");
+        owner.OwnFile(fs, uid, gid);
     }
 
     /// <summary>Dry-run of the pkexec command line: returns the exact argv that
