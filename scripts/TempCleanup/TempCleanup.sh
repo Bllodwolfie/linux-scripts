@@ -136,7 +136,7 @@ if [[ "$CUTOFF" -ge 0 ]]; then
             # mid-scan) — count it loudly instead of printing 0/unknown.
             if size=$(stat -c %s -- "$f" 2>/dev/null) \
                 && mfull=$(stat -c %y -- "$f" 2>/dev/null) && [[ -n "$mfull" ]]; then
-                mb=$(LC_ALL=C awk -v s="$size" 'BEGIN{printf "%.1f", s/1048576}')
+                mb=$(fmt_mb1 "$size")
                 dryrun_item "Delete" "$canon" "$mb MB, last modified ${mfull%% *}"
             else
                 stat_fails=$(( stat_fails + 1 ))

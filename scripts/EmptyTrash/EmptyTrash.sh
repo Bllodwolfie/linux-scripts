@@ -110,13 +110,22 @@ split_row() { # row
 }
 
 # Item fields for one info file: base, target, epoch-or-empty, size.
+# D-SC: pure-bash parse (was: basename + 2x awk + du + cut + date forks per
+# item; date -d and du stay — real syscalls, not shell-outs-per-line).
 read_trash_item() { # info-file
-    local info="$1" base encoded target dated epoch size payload
-    base=$(basename -- "$info" .trashinfo)
-    encoded=$(awk '/^Path=/{sub(/^Path=/,""); print; exit}' "$info" 2>/dev/null)
-    [[ -z "$encoded" ]] && return 1
+    local info="$1" base encoded target dated epoch size payload line
+    base="${info##*/}"; base="${base%.trashinfo}"
+    encoded=""; dated=""; local seen_path=0 seen_date=0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$seen_path" -eq 0 && "$line" == Path=* ]]; then
+            encoded="${line#Path=}"; seen_path=1
+        elif [[ "$seen_date" -eq 0 && "$line" == DeletionDate=* ]]; then
+            dated="${line#DeletionDate=}"; seen_date=1
+        fi
+        [[ "$seen_path" -eq 1 && "$seen_date" -eq 1 ]] && break
+    done < "$info" 2>/dev/null
+    [[ -n "$encoded" ]] || return 1
     target=$(urldecode "$encoded")
-    dated=$(awk '/^DeletionDate=/{sub(/^DeletionDate=/,""); print; exit}' "$info" 2>/dev/null)
     epoch=""
     if [[ -n "$dated" ]]; then
         epoch=$(date -d "$dated" +%s 2>/dev/null) || epoch=""
@@ -124,7 +133,7 @@ read_trash_item() { # info-file
     payload="$FILES_DIR/$base"
     size=0
     if [[ -e "$payload" || -L "$payload" ]]; then
-        size=$(du -sb -- "$payload" 2>/dev/null | cut -f1) || size=0
+        size=$(du -sb -- "$payload" 2>/dev/null); size="${size%%$'\t'*}"
         [[ "$size" =~ ^[0-9]+$ ]] || size=0
     fi
     # NUL-terminated (A-1): base/target may contain newlines (Path= %0A);
@@ -135,19 +144,22 @@ read_trash_item() { # info-file
 # Old-enough test. Missing date: old enough only when MinAgeDays==0
 # (delete-everything preserves empty-the-whole-trash; filtered runs
 # conservatively skip dateless items — same rule as Windows).
+# D-SC: integer arithmetic (was: one awk fork per tested item).
 is_old() { # epoch-or-empty
     if [[ -z "$1" ]]; then
         [[ "$MIN_AGE" -eq 0 ]]
         return
     fi
-    awk -v now="$NOW_EPOCH" -v e="$1" -v m="$MIN_AGE" \
-        'BEGIN{exit !((now - e) / 86400 >= m)}'
+    [[ "$1" =~ ^[0-9]+$ ]] || return 1
+    (( NOW_EPOCH - $1 >= MIN_AGE * 86400 ))
 }
 
 age_days_fmt() { # epoch-or-empty decimals
     if [[ -z "$1" ]]; then printf 'age unknown'; return; fi
-    LC_ALL=C awk -v now="$NOW_EPOCH" -v e="$1" -v d="$2" \
-        'BEGIN{printf "%.*f days old", d, (now - e) / 86400}'
+    local ds=$(( NOW_EPOCH - $1 ))
+    if [[ "$2" == "0" ]]; then printf '%d days old' $(( (ds + 43200) / 86400 )); return; fi
+    local t=$(( (ds * 10 + 43200) / 86400 ))
+    printf '%d.%d days old' $(( t / 10 )) $(( t % 10 ))
 }
 
 # Collect items (sorted for stable output/preview order). NUL-delimited end

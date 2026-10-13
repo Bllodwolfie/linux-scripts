@@ -27,13 +27,36 @@ info()  { printf 'INFO: %s\n' "$*"; }
 warn()  { printf 'WARN: %s\n' "$*"; }
 error() { printf 'ERROR: %s\n' "$*"; }
 
-# DRYRUN item emitter. Builds JSON via jq so targets with quotes/backslashes
-# can never break the protocol line.
+# DRYRUN item emitter. Pure-bash JSON escaping (D-SC): the old jq -n fork
+# cost one process per previewed file (200 files = 200+ jq execs). Output
+# stays byte-compatible with jq -c {action,target,detail} for the app's
+# System.Text.Json parser (key order preserved).
+json_escape() { # text -> escaped for a double-quoted JSON string
+    local s="$1"
+    case "$s" in
+        *'"'*|*'\'*|*[[:cntrl:]]*) ;;
+        *) printf '%s' "$s"; return 0 ;;
+    esac
+    local out="" i ch ord
+    local LC_ALL=C
+    for (( i=0; i<${#s}; i++ )); do
+        ch="${s:$i:1}"
+        case "$ch" in
+            '"') out+='\"' ;;
+            '\') out+='\\' ;;
+            $'\n') out+='\n' ;;
+            $'\t') out+='\t' ;;
+            $'\r') out+='\r' ;;
+            [[:cntrl:]]) printf -v ord '%d' "'$ch"; printf -v ch '\\u%04x' "$ord"; out+="$ch" ;;
+            *) out+="$ch" ;;
+        esac
+    done
+    printf '%s' "$out"
+}
 dryrun_item() { # action target detail
-    local json
-    json=$(jq -n -c --arg a "$1" --arg t "$2" --arg d "$3" \
-        '{action:$a,target:$t,detail:$d}') || return 1
-    printf 'DRYRUN: %s\n' "$json"
+    local a t d
+    a=$(json_escape "$1"); t=$(json_escape "$2"); d=$(json_escape "$3")
+    printf 'DRYRUN: {"action":"%s","target":"%s","detail":"%s"}\n' "$a" "$t" "$d"
 }
 
 require_jq() {
@@ -109,20 +132,39 @@ caller_name_for_uid() { # uid -> name (may be empty)
 
 # Human size: "4.2 KB" below 1 MiB, "12.3 MB" at/above (1-decimal,
 # invariant culture — mirrors the Windows N1 KB/MB reporting).
+# D-SC: pure-bash tenths (the old awk fork ran once per listed file).
 fmt_size() { # bytes
-    LC_ALL=C awk -v s="$1" 'BEGIN{if (s < 1048576) printf "%.1f KB", s/1024; else printf "%.1f MB", s/1048576}'
+    local s="$1" t
+    [[ "$s" =~ ^[0-9]+$ ]] || { printf '%s' "$s"; return 0; }
+    if [[ "$s" -lt 1048576 ]]; then
+        t=$(( (s * 10 + 512) / 1024 ))
+        printf '%d.%d KB' $(( t / 10 )) $(( t % 10 ))
+    else
+        t=$(( (s * 10 + 524288) / 1048576 ))
+        printf '%d.%d MB' $(( t / 10 )) $(( t % 10 ))
+    fi
+}
+
+# "%.1f MB" for a byte count (TempCleanup dry-run, file_detail below).
+fmt_mb1() { # bytes
+    local t=$(( ($1 * 10 + 524288) / 1048576 ))
+    printf '%d.%d' $(( t / 10 )) $(( t % 10 ))
 }
 
 # "N.N MB, last modified yyyy-MM-dd" detail string (Windows dry-run format).
+# D-SC: one stat call (was: two stats + one awk per file).
 file_detail() { # path -> 0 ok; 1 when stat failed (detail says so)
-    local sz dy rc=0
-    sz=$(stat -c %s -- "$1" 2>/dev/null) || { sz="unknown"; rc=1; }
-    dy=$(stat -c %y -- "$1" 2>/dev/null) || { dy=""; rc=1; }
-    if [[ "$rc" -ne 0 ]]; then
+    local out sz dy
+    out=$(stat -c '%s %y' -- "$1" 2>/dev/null) || {
         printf 'size unknown, last modified unknown (could not stat)'
         return 1
-    fi
-    LC_ALL=C awk -v s="$sz" -v d="${dy%% *}" 'BEGIN{printf "%.1f MB, last modified %s", s/1048576, d}'
+    }
+    sz="${out%% *}"; dy="${out#* }"; dy="${dy%% *}"
+    [[ "$sz" =~ ^[0-9]+$ && -n "$dy" ]] || {
+        printf 'size unknown, last modified unknown (could not stat)'
+        return 1
+    }
+    printf '%s MB, last modified %s' "$(fmt_mb1 "$sz")" "$dy"
 }
 
 # True (0) when the file's mtime is strictly older than cutoff_days before

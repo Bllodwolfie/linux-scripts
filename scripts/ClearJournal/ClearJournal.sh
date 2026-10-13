@@ -238,8 +238,11 @@ CUTOFF_EPOCH=$(LC_ALL=C awk -v n="$NOW_EPOCH" -v d="$RET_DAYS" 'BEGIN{printf "%d
 CUTOFF_STR=$(date -d "@$CUTOFF_EPOCH" '+%Y-%m-%d %H:%M:%S')
 
 boot_date() { date -d "@$1" '+%Y-%m-%d' 2>/dev/null || printf 'unknown'; }
+# D-SC: integer compare against the precomputed cutoff (was: one awk fork
+# per boot). Same instant the export --until uses, so preview and export
+# can never disagree by a float-truncation second.
 is_old_boot() { # epoch
-    LC_ALL=C awk -v n="$NOW_EPOCH" -v e="$1" -v d="$RET_DAYS" 'BEGIN{exit !((n - e)/86400 >= d)}'
+    [[ "$1" -le "$CUTOFF_EPOCH" ]]
 }
 
 # Include-only is accepted for CLI compatibility but NEVER honored here:

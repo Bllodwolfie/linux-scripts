@@ -135,12 +135,17 @@ palette_css() { # theme outvar
         printf -v "$_outvar" '%s' "    --base: #1e1e2e; --text: #cdd6f4; --green: #a6e3a1; --yellow: #f9e2af; --red: #f38ba8; --mauve: #cba6f7;"
         return 0
     fi
+    # User overrides for this theme, dumped once (key=value lines).
+    declare -A OVR=()
+    if [[ -n "$src" && -f "$src" ]] && cfg_usable "$src" 2>/dev/null; then
+        while IFS='=' read -r okey oval; do
+            [[ -n "$okey" ]] && OVR["$okey"]="$oval"
+        done < <(jq -r --arg t "$theme" '.[$t] // {} | to_entries[] | "\(.key)=\(.value)"' -- "$src" 2>/dev/null)
+    fi
     while IFS='=' read -r key val; do
         [[ -z "$key" ]] && continue
-        uval=""
-        if [[ -n "$src" && -f "$src" ]] && cfg_usable "$src" 2>/dev/null; then
-            uval=$(jq -r --arg t "$theme" --arg k "$key" '.[$t][$k] // empty' -- "$src" 2>/dev/null)
-        fi
+        # D-SC: one jq dump per theme into OVR (was: one jq fork per key).
+        uval="${OVR[$key]:-}"
         if [[ -n "$uval" && "$uval" != "$val" ]]; then
             if [[ "$uval" =~ ^#[0-9A-Fa-f]{3,8}$ ]]; then val="$uval"
             else warn "SystemHealthReport palette $theme.$key value is not a #rgb hex color — using default."; fi
@@ -155,6 +160,16 @@ risk_color() { # pct -> css var
     if [[ "$1" -lt "$RISK_GREEN" ]]; then printf 'var(--green)'
     elif [[ "$1" -lt "$RISK_YELLOW" ]]; then printf 'var(--yellow)'
     else printf 'var(--red)'; fi
+}
+
+# D-SC: "%.1f" GB / MB from byte/KB counts without an awk fork per row.
+gb1() { # bytes
+    local t=$(( ($1 * 10 + 536870912) / 1073741824 ))
+    printf '%d.%d' $(( t / 10 )) $(( t % 10 ))
+}
+mb1_kb() { # kilobytes
+    local t=$(( ($1 * 10 + 512) / 1024 ))
+    printf '%d.%d' $(( t / 10 )) $(( t % 10 ))
 }
 
 # Theme: follow Plasma light schemes when detectable, else Mocha (app default).
@@ -218,8 +233,8 @@ SUMMARY_CARDS=""; DISK_ROWS=""
 if [[ -n "$DISK_DATA" ]]; then
     while read -r src size used pcent mnt; do
         [[ -z "$src" ]] && continue
-        total_gb=$(LC_ALL=C awk -v b="$size" 'BEGIN{printf "%.1f", b/1073741824}')
-        used_gb=$(LC_ALL=C awk -v b="$used" 'BEGIN{printf "%.1f", b/1073741824}')
+        # D-SC: integer tenths (was: two awk forks per mount).
+        total_gb=$(gb1 "$size"); used_gb=$(gb1 "$used")
         pct="${pcent%\%}"; [[ "$pct" =~ ^[0-9]+$ ]] || pct=0
         color=$(risk_color "$pct")
         label="$mnt"
@@ -260,7 +275,7 @@ fi
 PROC_ROWS=""; PROC_I=0
 while read -r pid comm args rss; do
     PROC_I=$(( PROC_I + 1 ))
-    mb=$(LC_ALL=C awk -v r="$rss" 'BEGIN{printf "%.1f", r/1024}')
+    mb=$(mb1_kb "$rss")
     PROC_ROWS+="<tr><td>$PROC_I</td><td>$(html_escape "$comm")</td><td>$(html_escape "${args:0:100}")</td><td>$mb MB</td><td>$pid</td></tr>"
 done < <(ps -eo pid,comm,args,rss --sort=-rss --no-headers 2>/dev/null | head -n "$MAX_PROCS" --)
 
@@ -270,9 +285,11 @@ if ERR_OUT=$(journalctl -p 0..3 --since "-${ERR_HOURS} hours" -o short --no-page
         [[ -z "$line" || "$line" == "--"* ]] && continue
         level="Error"; color="var(--yellow)"
         if [[ "$line" =~ [Cc]rit|[Aa]lert|[Ee]merg ]]; then level="Critical"; color="var(--red)"; fi
-        tm=$(printf '%s' "$line" | awk '{print $1, $2, $3}')
-        src=$(printf '%s' "$line" | awk '{print $5}' | sed 's/:$//;s/\[[0-9]*\]$//')
-        msg=$(printf '%s' "$line" | cut -d' ' -f6- | cut -c1-150)
+        # D-SC: field split without awk/sed/cut forks per error row.
+        read -ra _F <<< "$line"
+        tm="${_F[0]:-} ${_F[1]:-} ${_F[2]:-}"
+        src="${_F[4]:-unknown}"; src="${src%:}"; src="${src%\[[0-9]*\]}"
+        msg="${_F[*]:5}"; msg="${msg:0:150}"
         ERR_ROWS+="<tr><td style=\"color:$color\">$level</td><td>$(html_escape "$tm")</td><td>$(html_escape "${src:-unknown}")</td><td>$(html_escape "$msg")</td></tr>"
     done <<< "$ERR_OUT"
 fi
