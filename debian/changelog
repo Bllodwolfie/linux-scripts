@@ -1,12 +1,18 @@
-scriptsuite (1.0.2-dev) noble; urgency=low
+scriptsuite (1.0.2) noble; urgency=low
 
-  * Stress-test fixes batch 1+2 (dev snapshot, not for release):
-    html_escape patsub fix, report palette/filename validation,
-    dev-install-policy mktemp, elevated-child argv confinement
-    (allow-list, consent, O_EXCL paths), BackupDir confinement,
-    setpriv-dropped journal export writer.
+  * Stress-test hardening batch: html_escape patsub fix, report
+    palette/filename validation, dev-install-policy mktemp,
+    elevated-child argv confinement (allow-list, consent, O_EXCL
+    paths), BackupDir confinement, setpriv-dropped journal export.
+  * Report execution: --dry-run preflight gate with preview dialog,
+    ConfirmEnabled lifecycle fix, quadratic self-test retry pruning.
+  * App icon: square center-cropped cat art for title bar and hicolor
+    theme (scriptsuite-logo, cache-busting rename), case-correct
+    Wayland desktop id.
+  * System health report: inline SVG theme-toggle icons replacing
+    font-dependent glyphs.
 
- -- Bllodwolfie <Bllodwolfie@users.noreply.github.com>  Sun, 11 Oct 2026 20:30:00 +0200
+ -- Bllodwolfie <Bllodwolfie@users.noreply.github.com>  Tue, 13 Oct 2026 21:09:28 +0200
 
 scriptsuite (1.0.1) noble; urgency=low
 
