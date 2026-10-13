@@ -117,6 +117,13 @@ fi
 # --- the cutoff. -mmin +N matches "strictly older than N days" like the
 # --- Windows LastWriteTime < now-CutoffDays comparison. Negative cutoff
 # --- matches nothing (same as Windows: a future cutoff excludes everything).
+# Idle I/O priority for the deletion path below: big sweeps must not stutter
+# an interactive desktop. The rm is a fresh exec per file, so wrap it
+# explicitly; a host without ionice degrades to plain rm. (-delete cannot
+# replace this loop: per-file ignore/allow-list checks, dry-run stat, and
+# locked-file accounting live here; ARG_MAX is already a non-issue since the
+# loop reads a list file instead of xargs.)
+if command -v ionice >/dev/null 2>&1; then IONICE=(ionice -c 3); else IONICE=(); fi
 deleted=0
 skipped=0
 stat_fails=0
@@ -143,7 +150,7 @@ if [[ "$CUTOFF" -ge 0 ]]; then
                 dryrun_item "Delete" "$canon" "size/date unknown (vanished mid-scan?)"
             fi
         else
-            if rm -f -- "$f" 2>/dev/null; then
+            if "${IONICE[@]}" rm -f -- "$f" 2>/dev/null; then
                 deleted=$(( deleted + 1 ))
             else
                 warn "Skipped locked file: $canon"
