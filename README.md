@@ -75,7 +75,7 @@ Defaults live in `src/ScriptSuite/DefaultConfigs/*.json` and copy to `~/.config/
 - `SystemHealthReport` → `OutputDir: $HOME/Documents`, `OutputFile: System_Health_Report.html`
 - `TempCleanup` → `TargetFolder: /tmp`, `CutoffDays: 7` (+ `IgnoreFolders`)
 
-Each script supports dry-run preview where `supportsDryRun: true` in its manifest (6 of 8; `SoftwareInventory` and `SystemHealthReport` are reports, not previews).
+Each script supports dry-run preview (`supportsDryRun: true` in its manifest for all 8; `SoftwareInventory` and `SystemHealthReport` preview a single planned `Create` row since reports generate whole).
 
 *Sample `System Health Report` output — see `assets/preview.png`.*
 

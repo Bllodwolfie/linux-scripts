@@ -10,8 +10,8 @@ using ScriptSuite.Services;
 namespace ScriptSuite.ViewModels;
 
 /// <summary>Run window logic: dry-run preview with per-item checkboxes (only
-/// where the manifest declares supportsDryRun — report-only scripts run
-/// immediately on open, like windows-scripts), live streamed output, Cancel,
+/// where the manifest declares supportsDryRun — every script previews,
+/// reports as a single planned Create row), live streamed output, Cancel,
 /// and an outcome banner. The window inserts the finished run into manual
 /// RunHistory; the dashboard refreshes when the dialog closes.
 /// Linux deviations from windows-scripts: a real Cancel button exists (kills
@@ -165,8 +165,14 @@ public partial class ScriptRunViewModel : ViewModelBase
     {
         int sel = Selections.Count(s => s.IsChecked);
         SelectionCountText = $"{sel} of {Selections.Count} item(s) selected";
+        // Confirm stays enabled in Preview/Finished whenever there is nothing
+        // the user could deselect: non-selectable scripts (reports, global
+        // effects) and empty previews (nothing matched). The only disabled
+        // case is a selectable list with items where zero are checked — and
+        // ConfirmAsync still refuses a zero-checked run, so an enabled
+        // button can never start anything the preview didn't show.
         ConfirmEnabled = CurrentPhase is Phase.Preview or Phase.Finished
-            && !IsRunning && (!SelectionEnabled || sel > 0);
+            && !IsRunning && (!SelectionEnabled || Selections.Count == 0 || sel > 0);
     }
 
     [RelayCommand]

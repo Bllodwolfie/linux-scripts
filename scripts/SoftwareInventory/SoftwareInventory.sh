@@ -8,9 +8,13 @@
 # and InstallDate have no dpkg equivalent and are not emulated.
 # Read-only: no dry-run/items, like the Windows version (supportsDryRun=false).
 #
-# Usage: SoftwareInventory.sh [--config-path FILE]
+# Usage: SoftwareInventory.sh [--dry-run] [--config-path FILE] [--include-only-file FILE]
 # Exit 0 on success; exit 1 on hard failures (relative path, folder-as-file,
-# unwritable output, dpkg missing).
+# unwritable output, dpkg missing). --dry-run plans one Create item and
+# writes nothing (the Run window previews it before Confirm). Reports are
+# always whole: --include-only-file is accepted for CLI compatibility but
+# never narrows anything (unlike ClearJournal there is no retention subset
+# to warn about — the preview item already says what will happen).
 
 set -u
 
@@ -21,11 +25,15 @@ fi
 # shellcheck disable=SC1091
 . "$HERE/../lib/common.sh"
 
+DRY_RUN=0
 CONFIG_PATH=""
+INCLUDE_ONLY_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --dry-run) DRY_RUN=1; shift ;;
         --config-path) CONFIG_PATH="${2:-}"; shift 2 ;;
+        --include-only-file) INCLUDE_ONLY_FILE="${2:-}"; shift 2 ;;
         *) error "Unknown argument: $1"; exit 1 ;;
     esac
 done
@@ -63,6 +71,14 @@ fi
 if [[ -e "$OUTPUT_FILE" && -d "$OUTPUT_FILE" ]]; then
     error "OutputFile is a folder, not a file: $OUTPUT_FILE"
     exit 1
+fi
+# Reports are whole-file by construction: an include-only list can never
+# narrow them, so it is accepted and ignored (no WARN — a successful report
+# must stay Success, and the preview item already states the full plan).
+: "$INCLUDE_ONLY_FILE"
+if [[ "$DRY_RUN" -eq 1 ]]; then
+    dryrun_item "Create" "$OUTPUT_FILE" "text report of installed software (dpkg/snap/flatpak); nothing written yet"
+    exit 0
 fi
 if ! mkdir -p -- "$OUT_DIR" 2>/dev/null; then
     error "Failed to create output folder for '$OUTPUT_FILE'."

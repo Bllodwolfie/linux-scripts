@@ -4,7 +4,8 @@
   "description": "Generates a self-contained HTML report of system health (CPU, memory, disks, network, errors).",
   "category": "Reports",
   "requiresAdmin": false,
-  "supportsDryRun": false,
+  "supportsDryRun": true,
+  "supportsSelection": false,
   "scriptPath": "scripts/SystemHealthReport/SystemHealthReport.sh",
   "fields": [
     {

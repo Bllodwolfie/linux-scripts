@@ -3,6 +3,7 @@
         xmlns:vm="using:ScriptSuite.ViewModels"
         x:Class="ScriptSuite.Views.ScriptRunWindow"
         x:DataType="vm:ScriptRunViewModel"
+        Icon="/Assets/ScriptSuite.ico"
         Title="{Binding Title}"
         Width="840" Height="620" MinWidth="600" MinHeight="420"
         Background="{DynamicResource Brush.Background.Primary}"

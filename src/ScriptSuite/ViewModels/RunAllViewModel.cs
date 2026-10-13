@@ -56,13 +56,14 @@ public partial class RunAllViewModel : ViewModelBase
 
     /// <summary>Aggregate preview summary — verbatim port of Windows
     /// RunAllPreviewWindow.BuildSummaryText (v2.1.0 top-line behavior).</summary>
-    public static string BuildSummaryText(int deleteCount, int moveCount, int skipCount,
+    public static string BuildSummaryText(int deleteCount, int moveCount, int skipCount, int createCount,
         int reportOnlyCount, int finalizedCount, int totalCount)
     {
         var parts = new List<string>();
         if (deleteCount > 0) parts.Add($"{deleteCount:N0} to delete");
         if (moveCount > 0) parts.Add($"{moveCount:N0} to move");
         if (skipCount > 0) parts.Add($"{skipCount:N0} to skip");
+        if (createCount > 0) parts.Add($"{createCount:N0} to create");
         string suffix = reportOnlyCount > 0
             ? $" (+ {reportOnlyCount:N0} report-only script{(reportOnlyCount == 1 ? "" : "s")} — no preview)"
             : "";
@@ -134,7 +135,7 @@ public partial class RunAllViewModel : ViewModelBase
 
     private void UpdateSummary(int finalized)
     {
-        int del = 0, mov = 0, skip = 0;
+        int del = 0, mov = 0, skip = 0, create = 0;
         foreach (var s in Sections)
             foreach (var item in s.PreviewItems)
                 switch ((item.Action ?? "").ToLowerInvariant())
@@ -142,9 +143,10 @@ public partial class RunAllViewModel : ViewModelBase
                     case "delete": del++; break;
                     case "move": mov++; break;
                     case "skip": skip++; break;
+                    case "create": create++; break;
                 }
         int reportOnly = Sections.Count(s => !s.Manifest.SupportsDryRun);
-        SummaryText = BuildSummaryText(del, mov, skip, reportOnly, finalized, Sections.Count);
+        SummaryText = BuildSummaryText(del, mov, skip, create, reportOnly, finalized, Sections.Count);
     }
 
     private void UpdateSummary() => UpdateSummary(_finalized);

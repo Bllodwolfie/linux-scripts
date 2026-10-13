@@ -3,6 +3,7 @@
         xmlns:vm="using:ScriptSuite.ViewModels"
         x:Class="ScriptSuite.Views.RunAllPreviewWindow"
         x:DataType="vm:RunAllViewModel"
+        Icon="/Assets/ScriptSuite.ico"
         Title="Run All — Preview"
         Width="900" Height="640" MinWidth="640" MinHeight="480"
         Background="{DynamicResource Brush.Background.Primary}"

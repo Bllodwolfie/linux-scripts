@@ -4,7 +4,8 @@
   "description": "Generates a text report of all installed software.",
   "category": "Reports",
   "requiresAdmin": false,
-  "supportsDryRun": false,
+  "supportsDryRun": true,
+  "supportsSelection": false,
   "scriptPath": "scripts/SoftwareInventory/SoftwareInventory.sh",
   "fields": [
     {

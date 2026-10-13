@@ -146,7 +146,7 @@ public static class Stage8SelfTest
                 Check(true, "8a preview empty in scratch env (count path skipped)");
             }
             int hBefore = history.GetRecent(100).Count;
-            if (runVm.ConfirmEnabled)
+            if (runVm.ConfirmEnabled && runVm.Selections.Count > 0)
             {
                 runVm.ConfirmAsync().GetAwaiter().GetResult();
                 Check(runVm.CurrentPhase == ScriptRunViewModel.Phase.Finished, "8a run finishes");
@@ -161,8 +161,24 @@ public static class Stage8SelfTest
             }
             else
             {
-                Check(true, "8a confirm disabled on empty preview (run skipped)");
+                Check(true, "8a preview empty in scratch env (run skipped)");
             }
+
+            // --- Empty preview: Confirm stays enabled but confirms to a safe
+            // --- no-op (stays in Preview, no history, nothing spawned) ---
+            Directory.CreateDirectory(Path.Combine(scratch, "emptytarget"));
+            File.WriteAllText(AppPaths.ConfigPathFor("TempCleanup"),
+                "{\"TargetFolder\": \"" + Path.Combine(scratch, "emptytarget") + "\", \"CutoffDays\": 1, \"IgnoreFolders\": []}");
+            var emptyVm = new ScriptRunViewModel(catalog.Find("TempCleanup")!, executor, elevation,
+                consents, history, AppPaths.ConfigPathFor("TempCleanup"), direct);
+            emptyVm.LoadAsync().GetAwaiter().GetResult();
+            Check(emptyVm.CurrentPhase == ScriptRunViewModel.Phase.Preview, "8a empty preview phase");
+            Check(emptyVm.Selections.Count == 0, "8a empty preview has no rows");
+            Check(emptyVm.ConfirmEnabled, "8a confirm enabled on empty preview");
+            int hEmpty = history.GetRecent(100).Count;
+            emptyVm.ConfirmAsync().GetAwaiter().GetResult();
+            Check(emptyVm.CurrentPhase == ScriptRunViewModel.Phase.Preview, "8a empty confirm stays in preview");
+            Check(history.GetRecent(100).Count == hEmpty, "8a empty confirm writes no history");
 
             // --- S1: all-Skip selection confirms to a no-op (Skip rows must
             // --- never reach the include file; nothing spawns, no history) ---
@@ -183,14 +199,26 @@ public static class Stage8SelfTest
             Check(history.GetRecent(100).Count == hSkip, "8a all-skip confirm writes no history");
             Check(File.Exists(Path.Combine(scratch, "shots", "old.png")), "8a all-skip confirm touches nothing");
 
-            // --- report-only script runs immediately ---
+            // --- report script previews one planned Create row (never runs
+            // --- on open); Confirm is enabled with no selection and the
+            // --- real run writes the report ---
             File.WriteAllText(AppPaths.ConfigPathFor("SystemHealthReport"),
                 "{\"OutputDir\": \"" + Path.Combine(scratch, "reports") + "\", \"OutputFile\": \"rep.html\","
                 + " \"MaxTopProcesses\": 5, \"MaxErrorEvents\": 5, \"ErrorWindowHours\": 24}");
             var repVm = new ScriptRunViewModel(catalog.Find("SystemHealthReport")!, executor, elevation,
                 consents, history, AppPaths.ConfigPathFor("SystemHealthReport"), direct);
             repVm.LoadAsync().GetAwaiter().GetResult();
-            Check(repVm.CurrentPhase == ScriptRunViewModel.Phase.Finished, "8a report-only runs without preview");
+            Check(repVm.CurrentPhase == ScriptRunViewModel.Phase.Preview, "8a report previews instead of running");
+            Check(repVm.Selections.Count == 1 && repVm.Selections[0].Item.Action == "Create",
+                "8a report preview is one Create row");
+            Check(repVm.Selections.All(s => !s.Selectable), "8a report row informational");
+            Check(!File.Exists(Path.Combine(scratch, "reports", "rep.html")), "8a preview writes no report");
+            Check(repVm.ConfirmEnabled, "8a report confirm needs no selection");
+            int hRep = history.GetRecent(100).Count;
+            repVm.ConfirmAsync().GetAwaiter().GetResult();
+            Check(repVm.CurrentPhase == ScriptRunViewModel.Phase.Finished, "8a report confirm finishes");
+            Check(File.Exists(Path.Combine(scratch, "reports", "rep.html")), "8a confirmed report written");
+            Check(history.GetRecent(100).Count == hRep + 1, "8a confirmed report in history");
 
             // --- admin no-consent gate spawns nothing ---
             var adminVm = new ScriptRunViewModel(catalog.Find("ClearJournal")!, executor, elevation,
@@ -258,15 +286,17 @@ public static class Stage8SelfTest
             Check(shvm.Rows[0].DisplayName.Contains("2 Days @ 09:00"), "8b scheduled trigger in display");
 
             // --- Run All ---
-            Check(RunAllViewModel.BuildSummaryText(0, 0, 0, 0, 0, 0) == "Nothing to do right now.",
+            Check(RunAllViewModel.BuildSummaryText(0, 0, 0, 0, 0, 0, 0) == "Nothing to do right now.",
                 "8c summary empty");
-            Check(RunAllViewModel.BuildSummaryText(0, 0, 0, 2, 2, 2)
+            Check(RunAllViewModel.BuildSummaryText(0, 0, 0, 0, 2, 2, 2)
                 == "Nothing to do right now (+ 2 report-only scripts — no preview).", "8c summary report-only");
-            Check(RunAllViewModel.BuildSummaryText(5, 3, 1, 0, 3, 3)
+            Check(RunAllViewModel.BuildSummaryText(5, 3, 1, 0, 0, 3, 3)
                 == "Across all scripts: 5 to delete, 3 to move, 1 to skip.", "8c summary full");
-            Check(RunAllViewModel.BuildSummaryText(2, 0, 0, 0, 1, 3)
+            Check(RunAllViewModel.BuildSummaryText(0, 0, 0, 1, 0, 1, 1)
+                == "Across all scripts: 1 to create.", "8c summary create");
+            Check(RunAllViewModel.BuildSummaryText(2, 0, 0, 0, 0, 1, 3)
                 == "Gathering previews so far: 2 to delete…", "8c summary partial");
-            Check(RunAllViewModel.BuildSummaryText(0, 0, 0, 0, 1, 3) == "Gathering previews…",
+            Check(RunAllViewModel.BuildSummaryText(0, 0, 0, 0, 0, 1, 3) == "Gathering previews…",
                 "8c summary gathering");
 
             var dash = new DashboardStateStore(Path.Combine(scratch, "dashboard.json"));
@@ -312,7 +342,7 @@ public static class Stage8SelfTest
                 AppPaths.ConfigPathFor, direct);
             ravm.LoadAsync().GetAwaiter().GetResult();
             Check(ravm.ConfirmEnabled, "8c preview gathered");
-            Check(ravm.SummaryText.Contains("1 report-only script"), "8c aggregate summary (" + ravm.SummaryText + ")");
+            Check(ravm.SummaryText.Contains("1 to create"), "8c aggregate summary (" + ravm.SummaryText + ")");
             int hRunAll = history.GetRecent(100).Count;
             ravm.ConfirmAsync().GetAwaiter().GetResult();
             Check(ravm.ProgressText == "Run All finished — 2 succeeded.", "8c tally (" + ravm.ProgressText + ")");

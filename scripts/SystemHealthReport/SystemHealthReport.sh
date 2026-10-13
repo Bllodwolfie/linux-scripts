@@ -12,9 +12,12 @@
 # embedded only when the PNGs resolve (repo assets/ or ~/Downloads fallback).
 # Read-only: no dry-run/items, like the Windows version (supportsDryRun=false).
 #
-# Usage: SystemHealthReport.sh [--config-path FILE]
+# Usage: SystemHealthReport.sh [--dry-run] [--config-path FILE] [--include-only-file FILE]
 # Exit 0 on success; exit 1 on hard failures (uncreatable dir, folder-as-file,
-# unwritable report).
+# unwritable report). --dry-run plans one Create item and writes nothing
+# (the Run window previews it before Confirm). Reports are always whole:
+# --include-only-file is accepted for CLI compatibility but never narrows
+# anything (no WARN — a successful report must stay Success).
 
 set -u
 
@@ -25,11 +28,15 @@ fi
 # shellcheck disable=SC1091
 . "$HERE/../lib/common.sh"
 
+DRY_RUN=0
 CONFIG_PATH=""
+INCLUDE_ONLY_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --dry-run) DRY_RUN=1; shift ;;
         --config-path) CONFIG_PATH="${2:-}"; shift 2 ;;
+        --include-only-file) INCLUDE_ONLY_FILE="${2:-}"; shift 2 ;;
         *) error "Unknown argument: $1"; exit 1 ;;
     esac
 done
@@ -103,13 +110,23 @@ if [[ -e "$OUTPUT_DIR" && ! -d "$OUTPUT_DIR" ]]; then
     error "OutputDir is not a folder (is a file): $OUTPUT_DIR"
     exit 1
 fi
-if ! mkdir -p -- "$OUTPUT_DIR" 2>/dev/null; then
-    error "Failed to create output folder '$OUTPUT_DIR'."
-    exit 1
-fi
 OUTPUT_PATH="$OUTPUT_DIR/$OUTPUT_FILE"
 if [[ -e "$OUTPUT_PATH" && -d "$OUTPUT_PATH" ]]; then
     error "OutputFile is a folder, not a file: $OUTPUT_PATH"
+    exit 1
+fi
+# Reports are whole-file by construction: an include-only list can never
+# narrow them, so it is accepted and ignored (no WARN — a successful report
+# must stay Success, and the preview item already states the full plan).
+: "$INCLUDE_ONLY_FILE"
+# Dry-run preview (supportsDryRun): one planned action, nothing written —
+# no directories created, no collectors run, no mascots copied.
+if [[ "$DRY_RUN" -eq 1 ]]; then
+    dryrun_item "Create" "$OUTPUT_PATH" "self-contained HTML system health report (10 sections); nothing written yet"
+    exit 0
+fi
+if ! mkdir -p -- "$OUTPUT_DIR" 2>/dev/null; then
+    error "Failed to create output folder '$OUTPUT_DIR'."
     exit 1
 fi
 

@@ -4,12 +4,13 @@ using ScriptSuite.Models;
 namespace ScriptSuite.Services;
 
 /// <summary>Stage 6 proofs for SoftwareInventory and SystemHealthReport (both
-/// read-only reports: no dry-run exists, so the suite asserts the
-/// supportsDryRun=false contract instead, plus real runs, config fallbacks,
-/// output validation, and history). Default-path runs (missing config) write
-/// to the real user locations the app itself would use — created files are
-/// removed afterwards iff they did not pre-exist. Returns report lines ending
-/// in SELF-TEST PASS or SELF-TEST FAIL.</summary>
+/// read-only reports: dry-run previews ONE planned Create row and writes
+/// nothing; the real run generates the whole report). Asserts the
+/// supportsDryRun=true + supportsSelection=false contract, real runs,
+/// config fallbacks, output validation, and history. Default-path runs
+/// (missing config) write the REAL user locations the app itself would
+/// use — created files are removed afterwards iff they did not pre-exist.
+/// Returns report lines ending in SELF-TEST PASS or SELF-TEST FAIL.</summary>
 public static class Stage6SelfTest
 {
     public static List<string> Run()
@@ -36,9 +37,11 @@ public static class Stage6SelfTest
             var executor = new BashScriptExecutor(catalog);
 
             Check(catalog.All.Count == 8, $"catalog holds all 8 scripts (got {catalog.All.Count})");
-            Check(catalog.Find("SoftwareInventory")?.SupportsDryRun == false
-                    && catalog.Find("SystemHealthReport")?.SupportsDryRun == false,
-                "both reports declare supportsDryRun=false (no dry-run contract to test)");
+            Check(catalog.Find("SoftwareInventory")?.SupportsDryRun == true
+                    && catalog.Find("SystemHealthReport")?.SupportsDryRun == true
+                    && catalog.Find("SoftwareInventory")?.SupportsSelection == false
+                    && catalog.Find("SystemHealthReport")?.SupportsSelection == false,
+                "both reports preview (supportsDryRun) without selection");
 
             lines.AddRange(Inventory(executor, home, cfgDir, historyPath));
             lines.AddRange(Health(executor, home, cfgDir, historyPath));
@@ -73,6 +76,13 @@ public static class Stage6SelfTest
         {
             OutputFile = Path.Combine(cfgDir, "Software_Inventory.txt"),
         });
+        var (previewItems, preview) = executor.GetDryRunItems("SoftwareInventory", cfg);
+        Check(preview.Outcome != RunOutcome.Failed && previewItems.Count == 1
+                && previewItems[0].Action == "Create"
+                && previewItems[0].Target == Path.Combine(cfgDir, "Software_Inventory.txt"),
+            "dry-run previews one Create row for the report path");
+        Check(!File.Exists(Path.Combine(cfgDir, "Software_Inventory.txt")),
+            "dry-run writes nothing");
         var real = executor.Execute("SoftwareInventory", cfg, dryRun: false);
         string text = File.Exists(Path.Combine(cfgDir, "Software_Inventory.txt"))
             ? File.ReadAllText(Path.Combine(cfgDir, "Software_Inventory.txt")) : "";
@@ -122,6 +132,12 @@ public static class Stage6SelfTest
             RiskGreen = 60,
             RiskYellow = 80,
         });
+        var (hrPreviewItems, hrPreview) = executor.GetDryRunItems("SystemHealthReport", cfg);
+        Check(hrPreview.Outcome != RunOutcome.Failed && hrPreviewItems.Count == 1
+                && hrPreviewItems[0].Action == "Create"
+                && hrPreviewItems[0].Target == Path.Combine(outDir, "health.html"),
+            "dry-run previews one Create row for the report path");
+        Check(!Directory.Exists(outDir), "dry-run creates no directories");
         var real = executor.Execute("SystemHealthReport", cfg, dryRun: false);
         string htmlPath = Path.Combine(outDir, "health.html");
         string html = File.Exists(htmlPath) ? File.ReadAllText(htmlPath) : "";

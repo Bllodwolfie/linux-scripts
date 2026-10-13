@@ -3,6 +3,7 @@
         xmlns:vm="using:ScriptSuite.ViewModels"
         x:Class="ScriptSuite.Views.HistoryWindow"
         x:DataType="vm:HistoryViewModel"
+        Icon="/Assets/ScriptSuite.ico"
         Title="Run History"
         Width="860" Height="560" MinWidth="560" MinHeight="360"
         Background="{DynamicResource Brush.Background.Primary}"
