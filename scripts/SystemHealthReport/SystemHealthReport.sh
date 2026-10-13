@@ -73,6 +73,15 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
             [[ "$ok" -eq 0 ]] && warn "$key value in $CONFIG_PATH is invalid — using default $def."
             printf -v "$var" '%s' "$val"
         done
+        # S3: counts flow into `head -n --` — a dash-leading or non-numeric
+        # value must never reach head as an option. Clamp to >=1, warn loudly.
+        for spec in "MAX_PROCS:10" "MAX_ERRORS:20" "ERR_HOURS:24"; do
+            var="${spec%%:*}"; def="${spec##*:}"
+            if [[ ! "${!var}" =~ ^[0-9]+$ || "${!var}" -lt 1 ]]; then
+                warn "${var} value '${!var}' is invalid — using default $def."
+                printf -v "$var" '%s' "$def"
+            fi
+        done
     fi
 fi
 OUTPUT_DIR=$(expand_user_path "$OUTPUT_DIR")
@@ -120,7 +129,7 @@ palette_css() { # theme outvar
         [[ -f "$cand" ]] && { shipped="$cand"; break; }
     done
     if [[ -n "$shipped" ]]; then
-        defs=$(jq -r --arg k "$theme" '.[$k] // {} | to_entries[] | "\(.key)=\(.value)"' "$shipped" 2>/dev/null)
+        defs=$(jq -r --arg k "$theme" '.[$k] // {} | to_entries[] | "\(.key)=\(.value)"' -- "$shipped" 2>/dev/null)
     fi
     if [[ -z "$defs" ]]; then
         printf -v "$_outvar" '%s' "    --base: #1e1e2e; --text: #cdd6f4; --green: #a6e3a1; --yellow: #f9e2af; --red: #f38ba8; --mauve: #cba6f7;"
@@ -130,7 +139,7 @@ palette_css() { # theme outvar
         [[ -z "$key" ]] && continue
         uval=""
         if [[ -n "$src" && -f "$src" ]] && cfg_usable "$src" 2>/dev/null; then
-            uval=$(jq -r --arg t "$theme" --arg k "$key" '.[$t][$k] // empty' "$src" 2>/dev/null)
+            uval=$(jq -r --arg t "$theme" --arg k "$key" '.[$t][$k] // empty' -- "$src" 2>/dev/null)
         fi
         if [[ -n "$uval" && "$uval" != "$val" ]]; then
             if [[ "$uval" =~ ^#[0-9A-Fa-f]{3,8}$ ]]; then val="$uval"
@@ -253,10 +262,10 @@ while read -r pid comm args rss; do
     PROC_I=$(( PROC_I + 1 ))
     mb=$(LC_ALL=C awk -v r="$rss" 'BEGIN{printf "%.1f", r/1024}')
     PROC_ROWS+="<tr><td>$PROC_I</td><td>$(html_escape "$comm")</td><td>$(html_escape "${args:0:100}")</td><td>$mb MB</td><td>$pid</td></tr>"
-done < <(ps -eo pid,comm,args,rss --sort=-rss --no-headers 2>/dev/null | head -"$MAX_PROCS")
+done < <(ps -eo pid,comm,args,rss --sort=-rss --no-headers 2>/dev/null | head -n "$MAX_PROCS" --)
 
 ERR_ROWS=""
-if ERR_OUT=$(journalctl -p 0..3 --since "-${ERR_HOURS} hours" -o short --no-pager 2>/dev/null | awk '!seen[$0]++' | head -"$MAX_ERRORS"); then
+if ERR_OUT=$(journalctl -p 0..3 --since "-${ERR_HOURS} hours" -o short --no-pager -- 2>/dev/null | awk '!seen[$0]++' | head -n "$MAX_ERRORS" --); then
     while IFS= read -r line; do
         [[ -z "$line" || "$line" == "--"* ]] && continue
         level="Error"; color="var(--yellow)"
@@ -303,7 +312,10 @@ palette_css Mocha MOCHA_CSS
 palette_css Latte LATTE_CSS
 
 # ----- assembly -----
-TMP_HTML=$(mktemp) || { error "Cannot create temp file."; exit 1; }
+# S3: sibling temp (same dir as the final report — same filesystem, same
+# dir perms, no /tmp cross-mount or predictable-name plant). Falls back to
+# plain mktemp only when -p fails; 0600 via the common umask either way.
+TMP_HTML=$(mktemp -p "$OUTPUT_DIR" .health.XXXXXX 2>/dev/null || mktemp) || { error "Cannot create temp file."; exit 1; }
 trap 'rm -f -- "$TMP_HTML"' EXIT
 {
 cat <<EOF

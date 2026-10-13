@@ -79,7 +79,7 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]]; then
         # Present-but-empty is not the silent-default case (missing key):
         # say so loudly, then fall back like any other invalid value.
         if [[ -z "$VTIME" ]]; then
-            if jq -e --arg k "VacuumTime" 'has($k)' "$CONFIG_PATH" >/dev/null 2>&1; then
+            if jq -e --arg k "VacuumTime" 'has($k)' -- "$CONFIG_PATH" >/dev/null 2>&1; then
                 warn "VacuumTime is empty — using default 7 days."
             fi
             VTIME="7 days"

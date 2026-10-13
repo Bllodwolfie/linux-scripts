@@ -69,7 +69,7 @@ if ! mkdir -p -- "$OUT_DIR" 2>/dev/null; then
     exit 1
 fi
 
-TMP_REPORT=$(mktemp) || { error "Cannot create temp file."; exit 1; }
+TMP_REPORT=$(mktemp -p "$OUT_DIR" .inventory.XXXXXX 2>/dev/null || mktemp) || { error "Cannot create temp file."; exit 1; }
 trap 'rm -f -- "$TMP_REPORT"' EXIT
 
 OS_PRETTY=$(awk -F= '/^PRETTY_NAME=/{gsub(/"/,"",$2); print $2}' /etc/os-release 2>/dev/null || echo Unknown)

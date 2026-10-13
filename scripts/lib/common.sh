@@ -17,6 +17,12 @@
 # Never `set -e`: a per-file failure must warn-and-continue, not kill the run.
 set -u
 
+# S3: private by default. Logs, exports, reports and walk temps land 0600 —
+# journal contents and file paths are not group/other-readable. Every script
+# sources this file, so one line covers all of them (including the setpriv
+# export writer, which inherits this umask through pkexec).
+umask 077
+
 info()  { printf 'INFO: %s\n' "$*"; }
 warn()  { printf 'WARN: %s\n' "$*"; }
 error() { printf 'ERROR: %s\n' "$*"; }
@@ -39,13 +45,13 @@ require_jq() {
 
 # True when the file exists and parses as JSON.
 cfg_usable() { # file
-    [[ -f "$1" ]] && jq -e . "$1" >/dev/null 2>&1
+    [[ -f "$1" ]] && jq -e . -- "$1" >/dev/null 2>&1
 }
 
 # String value for key, or default when missing/null/wrong-type.
 cfg_str() { # file key default
     local v
-    v=$(jq -r --arg k "$2" '.[$k] // empty' "$1" 2>/dev/null) || { printf '%s' "$3"; return 0; }
+    v=$(jq -r --arg k "$2" '.[$k] // empty' -- "$1" 2>/dev/null) || { printf '%s' "$3"; return 0; }
     if [[ -z "$v" ]]; then printf '%s' "$3"; else printf '%s' "$v"; fi
 }
 
@@ -53,7 +59,7 @@ cfg_str() { # file key default
 # (caller warns and keeps the default).
 cfg_int() { # file key default
     local v
-    v=$(jq -r --arg k "$2" 'if .[$k] == null then "" elif .[$k] | type == "number" then (.[$k] | tostring) else (.[$k] | tostring) end' "$1" 2>/dev/null) || { printf '%s' "$3"; return 0; }
+    v=$(jq -r --arg k "$2" 'if .[$k] == null then "" elif .[$k] | type == "number" then (.[$k] | tostring) else (.[$k] | tostring) end' -- "$1" 2>/dev/null) || { printf '%s' "$3"; return 0; }
     if [[ -z "$v" ]]; then printf '%s' "$3"; return 0; fi
     if [[ "$v" =~ ^-?[0-9]+$ ]]; then printf '%s' "$v"; return 0; fi
     printf '%s' "$3"; return 1
@@ -62,9 +68,9 @@ cfg_int() { # file key default
 # Array elements for key, one per line. Empty when missing. Returns 1 when
 # present-but-not-an-array (caller warns).
 cfg_list() { # file key
-    if ! jq -e --arg k "$2" 'has($k)' "$1" >/dev/null 2>&1; then return 0; fi
-    if ! jq -e --arg k "$2" '.[$k] | type == "array"' "$1" >/dev/null 2>&1; then return 1; fi
-    jq -r --arg k "$2" '.[$k][]? | if type == "string" then . else tostring end' "$1" 2>/dev/null
+    if ! jq -e --arg k "$2" 'has($k)' -- "$1" >/dev/null 2>&1; then return 0; fi
+    if ! jq -e --arg k "$2" '.[$k] | type == "array"' -- "$1" >/dev/null 2>&1; then return 1; fi
+    jq -r --arg k "$2" '.[$k][]? | if type == "string" then . else tostring end' -- "$1" 2>/dev/null
 }
 
 # Minimal env expansion for config paths (leading ~ plus $HOME/$USER in

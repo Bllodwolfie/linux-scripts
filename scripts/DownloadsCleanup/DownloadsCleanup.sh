@@ -106,7 +106,7 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]] && cfg_usable "$CONFIG_PATH"; th
     while IFS=$'\037' read -r ext dest; do
         [[ -z "$ext" ]] && continue
         EXT_MAP["$ext"]="$dest"
-    done < <(jq -r '.Categories // {} | to_entries[] | .key as $d | (.value // [])[] | "\(. | tostring | ascii_downcase)\u001f\($d)"' "$CONFIG_PATH" 2>/dev/null)
+    done < <(jq -r '.Categories // {} | to_entries[] | .key as $d | (.value // [])[] | "\(. | tostring | ascii_downcase)\u001f\($d)"' -- "$CONFIG_PATH" 2>/dev/null)
 else
     while IFS=$'\037' read -r ext dest; do
         EXT_MAP["$ext"]="$dest"
@@ -127,7 +127,7 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]] && cfg_usable "$CONFIG_PATH"; th
     while IFS=$'\037' read -r ext action dest; do
         [[ -z "$ext" ]] && continue
         ADV_MAP["$ext"]="$action"$'\037'"$dest"
-    done < <(jq -r '.AdvancedRules // {} | to_entries[] | [(.key | tostring | ascii_downcase | if startswith(".") then . else "." + . end), ((.value.Action // "") | tostring), ((.value.Destination // "") | tostring)] | join("\u001f")' "$CONFIG_PATH" 2>/dev/null)
+    done < <(jq -r '.AdvancedRules // {} | to_entries[] | [(.key | tostring | ascii_downcase | if startswith(".") then . else "." + . end), ((.value.Action // "") | tostring), ((.value.Destination // "") | tostring)] | join("\u001f")' -- "$CONFIG_PATH" 2>/dev/null)
 fi
 
 # IgnorePatterns: trimmed, empties dropped; matched against basename only.
