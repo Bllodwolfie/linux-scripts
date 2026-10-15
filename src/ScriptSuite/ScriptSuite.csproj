@@ -1,15 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ScriptSuite</AssemblyName>
     <Version>1.0.2</Version>
-    <!-- NOTE: net8.0 target is intentional for Stage 1: only the .NET 8 SDK is
-         installed on the build machine. CI / dev machines with the .NET 10 SDK
-         can retarget to net10.0 with no code changes. Do NOT use net8.0-desktop
-         (Windows-only WPF/WinForms implying). -->
+    <!-- NOTE: net10.0 target (security: was net8.0, EOL 2026-11-10).
+         Do NOT use net8.0-desktop (Windows-only WPF/WinForms implying). -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,7 +23,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
     <PackageReference Include="Avalonia.Diagnostics" Version="11.0.10" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
   </ItemGroup>
 
   <!-- Shipped assets: manifests describe scripts, default configs seed

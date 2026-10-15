@@ -226,6 +226,13 @@ DELETE_ERR=""
 delete_pair() { # base -> 0 when both halves are gone
     local base="$1" ferr ierr
     DELETE_ERR=""
+    # Security: refuse empty/unsafe base (e.g. a planted ".trashinfo" info
+    # file would otherwise yield base="" and delete $FILES_DIR itself).
+    # Bases come from info-file names and must never contain a path separator.
+    [[ -n "$base" ]] || return 1
+    case "$base" in
+        *"/"*|"."|"..") return 1 ;;
+    esac
     ferr=$(rm -rf -- "$FILES_DIR/$base" 2>&1) || DELETE_ERR+="files: $ferr. "
     ierr=$(rm -f -- "$INFO_DIR/$base.trashinfo" 2>&1) || DELETE_ERR+="info: $ierr. "
     if [[ ! -e "$FILES_DIR/$base" && ! -L "$FILES_DIR/$base" && ! -e "$INFO_DIR/$base.trashinfo" ]]; then
