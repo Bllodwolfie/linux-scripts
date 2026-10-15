@@ -294,12 +294,12 @@ sealed class Program
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.
+    // NOTE: .WithDeveloperTools() was removed — Avalonia 11.3 dropped that
+    // API from the Diagnostics package (devtools moved to
+    // AvaloniaUI.DiagnosticsSupport). Kept out so Debug builds compile.
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
-#if DEBUG
-            .WithDeveloperTools()
-#endif
             .WithInterFont()
             .LogToTrace();
 
