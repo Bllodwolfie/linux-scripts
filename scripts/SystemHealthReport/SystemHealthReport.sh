@@ -180,12 +180,15 @@ risk_color() { # pct -> css var
 }
 
 # D-SC: "%.1f" GB / MB from byte/KB counts without an awk fork per row.
+# ${1:-0}: callers pass machine output (ps/rss, df sizes); a missing column
+# must render 0.0, never trip set -u. Non-numeric remainders are rejected by
+# the callers' digit guards (ps args must be read last — see PROC loop).
 gb1() { # bytes
-    local t=$(( ($1 * 10 + 536870912) / 1073741824 ))
+    local t=$(( (${1:-0} * 10 + 536870912) / 1073741824 ))
     printf '%d.%d' $(( t / 10 )) $(( t % 10 ))
 }
 mb1_kb() { # kilobytes
-    local t=$(( ($1 * 10 + 512) / 1024 ))
+    local t=$(( (${1:-0} * 10 + 512) / 1024 ))
     printf '%d.%d' $(( t / 10 )) $(( t % 10 ))
 }
 
@@ -290,11 +293,16 @@ if command -v lspci >/dev/null 2>&1; then
 fi
 
 PROC_ROWS=""; PROC_I=0
-while read -r pid comm args rss; do
+# rss sits before args: args is the free-text column (spaces/flags like
+# --type, --no-sandbox) and must be read LAST, else read(1) stuffs the arg
+# tail + RSS into $rss and the arithmetic below evaluates words like
+# "type"/"no"/"daemon" as variables (set -u "unbound variable").
+while read -r pid comm rss args; do
+    [[ "$rss" =~ ^[0-9]+$ ]] || rss=0
     PROC_I=$(( PROC_I + 1 ))
     mb=$(mb1_kb "$rss")
     PROC_ROWS+="<tr><td>$PROC_I</td><td>$(html_escape "$comm")</td><td>$(html_escape "${args:0:100}")</td><td>$mb MB</td><td>$pid</td></tr>"
-done < <(ps -eo pid,comm,args,rss --sort=-rss --no-headers 2>/dev/null | head -n "$MAX_PROCS" --)
+done < <(ps -eo pid,comm,rss,args --sort=-rss --no-headers 2>/dev/null | head -n "$MAX_PROCS" --)
 
 ERR_ROWS=""
 if ERR_OUT=$(journalctl -p 0..3 --since "-${ERR_HOURS} hours" -o short --no-pager -- 2>/dev/null | awk '!seen[$0]++' | head -n "$MAX_ERRORS" --); then
