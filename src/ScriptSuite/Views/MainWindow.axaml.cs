@@ -37,6 +37,12 @@ public partial class MainWindow : Window
                     var win = new ScheduledHistoryWindow { DataContext = scheduledVm };
                     await win.ShowDialog<bool?>(this);
                 };
+                vm.ShowScheduledTasks = async tasksVm =>
+                {
+                    var win = new ScheduledTasksWindow { DataContext = tasksVm };
+                    await win.ShowDialog<bool?>(this);
+                    vm.Refresh();
+                };
                 vm.ShowRunAll = async runAllVm =>
                 {
                     var win = new RunAllPreviewWindow { DataContext = runAllVm };

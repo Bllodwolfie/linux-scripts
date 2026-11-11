@@ -53,8 +53,9 @@ public partial class MainViewModel : ViewModelBase
         + "live output, Cancel, outcome banner), Settings edits its config file, Schedule sets "
         + "a systemd user timer, Hide removes the tile (Show hidden brings it back dimmed). "
         + "Run All runs every checked, visible script in one batch — EmptyTrash first, admin scripts "
-        + "only with risk consent. History lists all runs (manual and scheduled) with their log files "
-        + "and source filters. Every change saves immediately; use the ? panels for per-window details.";
+        + "only with risk consent. History lists all run records with their log files and filters; "
+        + "Scheduled shows configured systemd timer schedules and when tasks run next. Every change "
+        + "saves immediately; use the ? panels for per-window details.";
 
     [RelayCommand]
     public void ToggleTheme()
@@ -96,6 +97,9 @@ public partial class MainViewModel : ViewModelBase
 
     /// <summary>Set by the view: shows scheduled-run history. Null headless.</summary>
     public Func<ScheduledHistoryViewModel, Task>? ShowScheduledHistory { get; set; }
+
+    /// <summary>Set by the view: shows scheduled tasks overview. Null headless.</summary>
+    public Func<ScheduledTasksViewModel, Task>? ShowScheduledTasks { get; set; }
 
     /// <summary>Production history open that never kills startup (E6): a
     /// corrupt/unwritable history.db falls back to a temp database and sets
@@ -256,6 +260,24 @@ public partial class MainViewModel : ViewModelBase
     public Task OpenHistoryAsync() => ShowHistory is null
         ? Task.CompletedTask
         : ShowHistory(new HistoryViewModel(_history, _catalog, LogDetailResolver.Production()));
+
+    [RelayCommand]
+    public Task OpenScheduledAsync()
+    {
+        if (ShowScheduledTasks is not null)
+        {
+            var vm = new ScheduledTasksViewModel(_catalog, Schedules, _history, async scriptId =>
+            {
+                var card = Cards.FirstOrDefault(c => c.Manifest.Id == scriptId);
+                if (card is not null && ShowScheduleDialog is not null)
+                {
+                    await ShowScheduleDialog(card);
+                }
+            });
+            return ShowScheduledTasks(vm);
+        }
+        return Task.CompletedTask;
+    }
 
     [RelayCommand]
     public Task OpenScheduledHistoryAsync() => ShowScheduledHistory is null

@@ -25,9 +25,15 @@
                                    Foreground="{DynamicResource Brush.Status.Error.Foreground}" />
                     </Border>
                 </StackPanel>
-                <Button Content="?" Command="{Binding ToggleHelpCommand}"
-                        Width="24" Height="24" HorizontalAlignment="Right"
-                        DockPanel.Dock="Right" />
+                <Button Command="{Binding ToggleHelpCommand}"
+                        Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0"
+                        CornerRadius="12" HorizontalAlignment="Right" DockPanel.Dock="Right"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                        ToolTip.Tip="Run help">
+                    <TextBlock Text="?" FontSize="13" FontWeight="Bold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextAlignment="Center" />
+                </Button>
             </DockPanel>
             <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.8" />
             <TextBlock Text="{Binding AdminNote}" IsVisible="{Binding ShowAdminBadge}"
