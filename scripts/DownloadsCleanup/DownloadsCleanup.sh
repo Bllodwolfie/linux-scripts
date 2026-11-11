@@ -115,6 +115,7 @@ else
         ".mp4" "$HOME/Videos/Misc" ".mkv" "$HOME/Videos/Misc" ".avi" "$HOME/Videos/Misc" ".mov" "$HOME/Videos/Misc" ".webm" "$HOME/Videos/Misc" \
         ".png" "$HOME/Pictures/Misc" ".jpg" "$HOME/Pictures/Misc" ".jpeg" "$HOME/Pictures/Misc" ".gif" "$HOME/Pictures/Misc" ".bmp" "$HOME/Pictures/Misc" ".svg" "$HOME/Pictures/Misc" ".webp" "$HOME/Pictures/Misc" \
         ".blend" "$HOME/Documents/Modeling" ".obj" "$HOME/Documents/Modeling" ".stl" "$HOME/Documents/Modeling" ".fbx" "$HOME/Documents/Modeling" \
+        ".pkt" "$HOME/Documents/Networking/PacketTracer" ".pka" "$HOME/Documents/Networking/PacketTracer" ".pkz" "$HOME/Documents/Networking/PacketTracer" \
         ".csv" "$HOME/Documents/Spreadsheets" ".xls" "$HOME/Documents/Spreadsheets" ".xlsx" "$HOME/Documents/Spreadsheets" ".ods" "$HOME/Documents/Spreadsheets" \
         ".ppt" "$HOME/Documents/Presentations" ".pptx" "$HOME/Documents/Presentations" ".odp" "$HOME/Documents/Presentations" \
         ".txt" "$HOME/Documents/Text" ".md" "$HOME/Documents/Text" ".pdf" "$HOME/Documents/Text" ".doc" "$HOME/Documents/Text" ".docx" "$HOME/Documents/Text" ".epub" "$HOME/Documents/Text" ".log" "$HOME/Documents/Text" ".rtf" "$HOME/Documents/Text" ".odt" "$HOME/Documents/Text" \

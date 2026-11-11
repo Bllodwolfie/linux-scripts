@@ -66,3 +66,13 @@ assert_file_exists "dl-real-moves-mp3" "$D/sorted/song.mp3"
 assert_file_exists "dl-real-keeps-fresh" "$D/new.zip"
 assert_file_exists "dl-real-writes-log" "$T_SCRATCH/logs/CleanupLog.txt"
 assert_contains "dl-real-summary" "$(cat "$T_OUT")" "DownloadsCleanup:"
+
+# default category routing for packet tracer (.pkt)
+D_PKT="$(mktemp -d "$T_SCRATCH/dl-pkt-XXXXXX")"
+make_old "$D_PKT/lab.pkt" 10
+CFG_PKT="$T_SCRATCH/DownloadsCleanup-pkt.json"
+sed 's|"\$HOME/Downloads"|"'"$D_PKT"'"|' "$(repo_root)/src/ScriptSuite/DefaultConfigs/DownloadsCleanup.json" > "$CFG_PKT"
+run_case DownloadsCleanup --config-path "$CFG_PKT"
+assert_eq "dl-pkt-exit" "0" "$T_RC"
+assert_file_exists "dl-pkt-moved" "$HOME/Documents/Networking/PacketTracer/lab.pkt"
+
