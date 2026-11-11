@@ -9,7 +9,7 @@
         Background="{DynamicResource Brush.Background.Primary}"
         Foreground="{DynamicResource Brush.Foreground.Primary}">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24,18,24,20">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="24,18,24,20">
         <DockPanel Grid.Row="0">
             <StackPanel Orientation="Horizontal" Spacing="12"
                         VerticalAlignment="Center">
@@ -26,8 +26,10 @@
                     Margin="0,10,0,0">
             <TextBox Text="{Binding SearchText}" Width="260"
                      Watermark="Search script, summary, outcome…" />
+            <ComboBox ItemsSource="{Binding TriggerOptions}"
+                      SelectedItem="{Binding TriggerFilter}" Width="130" />
             <ComboBox ItemsSource="{Binding OutcomeOptions}"
-                      SelectedItem="{Binding OutcomeFilter}" Width="140" />
+                      SelectedItem="{Binding OutcomeFilter}" Width="130" />
         </StackPanel>
 
         <TextBlock Grid.Row="2" Text="{Binding EmptyMessage}"
@@ -43,11 +45,11 @@
                                 Background="{DynamicResource Brush.Background.Card}"
                                 Padding="14,10" Margin="0,0,0,8">
                             <StackPanel Spacing="4">
-                                <Grid ColumnDefinitions="158,*,92">
+                                <Grid ColumnDefinitions="158,*,Auto,92">
                                     <TextBlock Grid.Column="0" Text="{Binding When}"
                                                Opacity="0.7" TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="1">
+                                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
                                         <TextBlock Text="{Binding DisplayName}"
                                                    FontSize="16" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding Summary}"
@@ -55,6 +57,17 @@
                                                    TextWrapping="Wrap" Opacity="0.8" />
                                     </StackPanel>
                                     <Border Grid.Column="2" CornerRadius="4"
+                                            Padding="8,2" Margin="0,0,8,0"
+                                            Classes.badge-manual="{Binding IsManual}"
+                                            Classes.badge-scheduled="{Binding IsScheduled}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding TriggerLabel}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Classes.badge-manual="{Binding IsManual}"
+                                                   Classes.badge-scheduled="{Binding IsScheduled}" />
+                                    </Border>
+                                    <Border Grid.Column="3" CornerRadius="4"
                                             Padding="8,2"
                                             Classes.badge-success="{Binding IsSuccessBadge}"
                                             Classes.badge-warning="{Binding IsWarningBadge}"
@@ -106,6 +119,16 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!-- Pagination Controls -->
+        <DockPanel Grid.Row="4" Margin="0,10,0,0" IsVisible="{Binding HasPagination}">
+            <Button Content="Previous" Command="{Binding PreviousPageCommand}"
+                    IsEnabled="{Binding HasPreviousPage}" DockPanel.Dock="Left" Padding="14,6" />
+            <Button Content="Next" Command="{Binding NextPageCommand}"
+                    IsEnabled="{Binding HasNextPage}" DockPanel.Dock="Right" Padding="14,6" />
+            <TextBlock Text="{Binding PageInfoText}" HorizontalAlignment="Center"
+                       VerticalAlignment="Center" Opacity="0.75" />
+        </DockPanel>
     </Grid>
 
 </Window>

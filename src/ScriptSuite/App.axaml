@@ -43,5 +43,18 @@
         <Style Selector="TextBlock.badge-info">
             <Setter Property="Foreground" Value="{DynamicResource Brush.Status.Info.Foreground}" />
         </Style>
+        <!-- Trigger badge styles (Catppuccin Mocha & Latte theme-adaptive) -->
+        <Style Selector="Border.badge-manual">
+            <Setter Property="Background" Value="{DynamicResource Brush.Accent.Primary}" />
+        </Style>
+        <Style Selector="TextBlock.badge-manual">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Primary.Foreground}" />
+        </Style>
+        <Style Selector="Border.badge-scheduled">
+            <Setter Property="Background" Value="{DynamicResource Brush.Background.Badge.Custom}" />
+        </Style>
+        <Style Selector="TextBlock.badge-scheduled">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Peach.Foreground}" />
+        </Style>
     </Application.Styles>
 </Application>

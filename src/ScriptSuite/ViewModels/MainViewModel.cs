@@ -53,8 +53,8 @@ public partial class MainViewModel : ViewModelBase
         + "live output, Cancel, outcome banner), Settings edits its config file, Schedule sets "
         + "a systemd user timer, Hide removes the tile (Show hidden brings it back dimmed). "
         + "Run All runs every checked, visible script in one batch — EmptyTrash first, admin scripts "
-        + "only with risk consent. History lists manual runs with their log files; Scheduled lists "
-        + "timer runs. Every change saves immediately; use the ? panels for per-window details.";
+        + "only with risk consent. History lists all runs (manual and scheduled) with their log files "
+        + "and source filters. Every change saves immediately; use the ? panels for per-window details.";
 
     [RelayCommand]
     public void ToggleTheme()
@@ -269,7 +269,7 @@ public partial class MainViewModel : ViewModelBase
             card.RefreshLastRun(latest);
 
         RecentRuns.Clear();
-        foreach (var e in _history.GetRecent(10))
+        foreach (var e in _history.GetRecent(10, "Manual"))
             RecentRuns.Add($"{e.StartedAt}  {e.ScriptId}  {e.Outcome}"
                 + (string.IsNullOrWhiteSpace(e.Summary) ? "" : $"  — {e.Summary}"));
         if (RecentRuns.Count == 0)

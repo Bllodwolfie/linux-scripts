@@ -80,7 +80,6 @@
                     </Grid>
                 </Button>
                 <Button Content="History" Command="{Binding OpenHistoryCommand}" Padding="16,8" Margin="0,0,8,0" />
-                <Button Content="Scheduled" Command="{Binding OpenScheduledHistoryCommand}" Padding="16,8" Margin="0,0,8,0" />
                 <Button Content="Run All" Command="{Binding OpenRunAllCommand}"
                         IsEnabled="{Binding RunAllEnabled}" FontWeight="SemiBold" Padding="20,8" />
             </StackPanel>

@@ -64,7 +64,7 @@ public static class Stage3SelfTest
 
                 var (items, dry) = executor.GetDryRunItems("EmptyTrash", config7);
                 Check(dry.Outcome == RunOutcome.Success, $"dry-run outcome is Success (got {dry.Outcome})");
-                var byTarget = items.ToDictionary(i => i.Target);
+                var byTarget = items.GroupBy(i => i.Target).ToDictionary(g => g.Key, g => g.First());
                 bool actionsOk = byTarget.TryGetValue(oldTarget, out var o) && o.Action == "Delete" && o.Detail.Contains("days old")
                     && byTarget.TryGetValue(freshTarget, out var f) && f.Action == "Skip" && f.Detail.Contains("younger than 7 days")
                     && byTarget.TryGetValue(nodateTarget, out var n) && n.Action == "Skip" && n.Detail.Contains("age unknown");

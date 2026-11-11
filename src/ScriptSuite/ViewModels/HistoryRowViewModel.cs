@@ -14,6 +14,13 @@ public partial class HistoryRowViewModel : ViewModelBase
     public string ScriptId { get; init; } = "";
     public string When { get; init; } = "";
     public string DisplayName { get; init; } = "";
+    public string TriggerType { get; init; } = "Manual";
+    public string? TriggerDetail { get; init; }
+    public bool IsManual => string.Equals(TriggerType, "Manual", StringComparison.OrdinalIgnoreCase);
+    public bool IsScheduled => string.Equals(TriggerType, "Scheduled", StringComparison.OrdinalIgnoreCase);
+    public string TriggerLabel => IsScheduled && !string.IsNullOrWhiteSpace(TriggerDetail) && TriggerDetail != "timer"
+        ? $"Scheduled ({TriggerDetail})"
+        : TriggerType;
     public string Outcome { get; init; } = "";
     public string? Summary { get; init; }
     public bool HasSummary => !string.IsNullOrEmpty(Summary);
