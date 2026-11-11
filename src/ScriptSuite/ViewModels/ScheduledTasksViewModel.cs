@@ -42,12 +42,19 @@ public partial class ScheduledTasksViewModel : ViewModelBase
         foreach (var m in _catalog.All)
         {
             var entry = _schedules.Get(m.Id);
-            bool hasSchedule = entry is not null;
+            bool timerActive = SystemdScheduleService.TaskExists(m.Id);
+            bool hasSchedule = entry is not null || timerActive;
             if (hasSchedule) activeCount++;
 
-            string scheduleSummary = entry is not null
-                ? SystemdScheduleService.SummaryFor(entry)
-                : "Not scheduled";
+            string scheduleSummary = "Not scheduled";
+            if (entry is not null)
+            {
+                scheduleSummary = SystemdScheduleService.SummaryFor(entry);
+            }
+            else if (timerActive)
+            {
+                scheduleSummary = ReadTimerSummary(m.Id);
+            }
 
             string lastRanText = "Never ran";
             string lastOutcome = "";
@@ -75,6 +82,24 @@ public partial class ScheduledTasksViewModel : ViewModelBase
 
         CountText = $"{activeCount} of {_catalog.All.Count} script(s) scheduled";
         ShowEmptyMessage = activeCount == 0;
+    }
+
+    private static string ReadTimerSummary(string scriptId)
+    {
+        try
+        {
+            string path = Path.Combine(SystemdScheduleService.UnitDir, SystemdScheduleService.TimerNameFor(scriptId));
+            if (File.Exists(path))
+            {
+                foreach (var line in File.ReadAllLines(path))
+                {
+                    if (line.StartsWith("Description=ScriptSuite schedule:", StringComparison.OrdinalIgnoreCase))
+                        return line.Substring("Description=ScriptSuite schedule:".Length).Trim();
+                }
+            }
+        }
+        catch { }
+        return "Active (systemd timer)";
     }
 
     private async Task EditScheduleAsync(string scriptId)
