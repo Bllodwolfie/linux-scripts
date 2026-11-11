@@ -81,14 +81,43 @@ if [[ -n "$CONFIG_PATH" && -f "$CONFIG_PATH" ]] && cfg_usable "$CONFIG_PATH"; th
         IGNORE_MAP["$(canonical "$(expand_user_path "$raw")")"]=1
     done < <(cfg_list "$CONFIG_PATH" "IgnoreFolders" 2>/dev/null)
 fi
+
+# Built-in ignored folder names (VCS, dependency, environment, and build artifact trees)
+DEFAULT_IGNORE_NAMES=(".git" ".svn" ".hg" "node_modules" "vendor" ".venv" "venv" "__pycache__" ".cargo" "target" "bin" "obj")
+
 is_ignored() { # canonical-path
-    local p="$1" ig
+    local p="$1" ig base
+    base=$(basename -- "$p")
+    for def in "${DEFAULT_IGNORE_NAMES[@]}"; do
+        if [[ "$base" == "$def" || "$p" == *"/$def/"* || "$p" == *"/$def" ]]; then
+            return 0
+        fi
+    done
     [[ ${#IGNORE_MAP[@]} -eq 0 ]] && return 1
     [[ -n "${IGNORE_MAP[$p]:-}" ]] && return 0
     for ig in "${!IGNORE_MAP[@]}"; do
         [[ "$p" == "$ig"/* ]] && return 0
     done
     return 1
+}
+
+# Fast pruned bottom-up walk (prunes ignored trees; children before parents via reverse sort)
+walk_find_dirs_bottomup() { # listfile target
+    local listfile="$1" target="$2"
+    local prune_args=()
+    for name in "${DEFAULT_IGNORE_NAMES[@]}"; do
+        [[ ${#prune_args[@]} -gt 0 ]] && prune_args+=("-o")
+        prune_args+=("-name" "$name")
+    done
+    for ig in "${!IGNORE_MAP[@]}"; do
+        if [[ "$ig" == "$target"/* ]]; then
+            prune_args+=("-o" "-path" "$ig")
+        fi
+    done
+
+    WALK_RC=0
+    find "$target" -mindepth 1 \( "${prune_args[@]}" \) -prune -o -type d -print0 2>>"$WALK_ACC" |
+        sort -z -r > "$listfile" || WALK_RC=$?
 }
 
 # Include-only allow-list (preview confirmation), canonicalized.
@@ -143,7 +172,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
         done < "$WALK_TMP"
         return 0
     }
-    walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d -depth
+    walk_find_dirs_bottomup "$WALK_LIST" "$CANON_TARGET"
     while IFS= read -r -d '' d; do
         canon=$(canonical "$d")
         [[ -n "${SIM_REMOVED[$canon]:-}" ]] && continue
@@ -161,7 +190,7 @@ fi
 
 write_log "$LOGFILE" "Cleanup started"
 declare -A UNDEL=()
-walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d -depth
+walk_find_dirs_bottomup "$WALK_LIST" "$CANON_TARGET"
 while IFS= read -r -d '' d; do
     canon=$(canonical "$d")
     is_ignored "$canon" && continue
@@ -182,7 +211,7 @@ done
 # Ignored folders stay empty on disk by design — exclude them here too, or a
 # run that correctly kept them would still report Warning.
 remaining=0
-walk_find "$WALK_LIST" "$CANON_TARGET" -mindepth 1 -type d
+walk_find_dirs_bottomup "$WALK_LIST" "$CANON_TARGET"
 while IFS= read -r -d '' d; do
     canon=$(canonical "$d")
     is_ignored "$canon" && continue

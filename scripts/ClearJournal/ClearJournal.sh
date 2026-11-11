@@ -201,9 +201,14 @@ fi
 JCTL=(journalctl)
 [[ "$SCOPE" == "user" ]] && JCTL+=(--user)
 
-if [[ "$SCOPE" == "system" && "$EUID" -ne 0 && "$DRY_RUN" -eq 0 ]]; then
-    error "System journal vacuum requires root — run via pkexec (the app elevates automatically)."
-    exit 1
+if [[ "$SCOPE" == "system" && "$EUID" -ne 0 ]]; then
+    if [[ "$DRY_RUN" -eq 0 ]]; then
+        info "Scheduled/unprivileged run: system journal vacuum requires root (run manually via pkexec) — falling back to user journal vacuum."
+        SCOPE="user"
+        JCTL=(journalctl --user)
+    else
+        info "Running dry-run preview as non-root; scheduled runs will fall back to user journal unless run with pkexec."
+    fi
 fi
 if [[ "$SCOPE" == "system" && ! -d /var/log/journal ]]; then
     warn "No persistent system journal (/var/log/journal missing — Storage=volatile?) — vacuum will be a no-op."
@@ -389,11 +394,8 @@ fi
 # to vacuum must never report plain Success. (Same class of lie as the
 # Windows note about never trusting ps.HadErrors.)
 if grep -qiE 'failed to delete|permission denied' <<< "$VAC_OUT"; then
-    while IFS= read -r vl; do
-        if grep -qiE 'failed to delete|permission denied' <<< "$vl"; then
-            warn "vacuum blocked: $vl"
-        fi
-    done <<< "$VAC_OUT"
+    denied_n=$(grep -ciE 'failed to delete|permission denied' <<< "$VAC_OUT")
+    warn "User journal vacuum: $denied_n archived journal file(s) require root write permissions to delete from /var/log/journal (run manually via pkexec)."
 fi
 
 DU_AFTER=$(disk_usage)
