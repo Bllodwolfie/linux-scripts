@@ -14,6 +14,7 @@ public sealed class ScheduleEntry
     [JsonPropertyName("interval")] public int Interval { get; set; } = 1;
     // HH:mm 24h
     [JsonPropertyName("timeOfDay")] public string TimeOfDay { get; set; } = "09:00";
+    [JsonPropertyName("dayOfWeek")] public string? DayOfWeek { get; set; }
     [JsonPropertyName("createdAt")] public string CreatedAt { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
     [JsonPropertyName("nextRun")] public string? NextRun { get; set; }
 }

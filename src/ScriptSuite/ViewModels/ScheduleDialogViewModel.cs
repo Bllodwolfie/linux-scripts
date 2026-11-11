@@ -109,6 +109,7 @@ public partial class ScheduleDialogViewModel : ViewModelBase
         if (RiskConsented)
             _consents.SetConsent(_manifest.Id, true);
 
+        var existingEntry = _schedules.Get(_manifest.Id);
         var entry = new ScheduleEntry
         {
             ScriptId = _manifest.Id,
@@ -116,6 +117,7 @@ public partial class ScheduleDialogViewModel : ViewModelBase
             Unit = Unit,
             Interval = interval,
             TimeOfDay = TimeText.Trim(),
+            DayOfWeek = existingEntry?.DayOfWeek ?? (Unit == "Weeks" ? "Sunday" : null),
             CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
         };
         var (ok, error) = _register(entry);

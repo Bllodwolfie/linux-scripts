@@ -133,11 +133,14 @@ public sealed class SystemdScheduleService
                 return (false, $"TimeOfDay must look like HH:mm (e.g. 09:00), got '{entry.TimeOfDay}'.");
             int interval = entry.Interval < 1 ? 1 : entry.Interval;
             string hhmm = ts.ToString(@"hh\:mm");
+            string day = !string.IsNullOrWhiteSpace(entry.DayOfWeek) && entry.DayOfWeek.Length >= 3
+                ? entry.DayOfWeek[..3]
+                : "Mon";
 
             string timerBody = (entry.Unit, interval) switch
             {
                 ("Days", 1) => $"OnCalendar=*-*-* {hhmm}:00",
-                ("Weeks", 1) => $"OnCalendar=Mon *-*-* {hhmm}:00",
+                ("Weeks", 1) => $"OnCalendar={day} *-*-* {hhmm}:00",
                 ("Hours", _) => $"OnUnitActiveSec={interval}h",
                 ("Days", _) => $"OnUnitActiveSec={interval}d",
                 ("Weeks", _) => $"OnUnitActiveSec={interval}w",
@@ -201,7 +204,7 @@ public sealed class SystemdScheduleService
         return (entry.Unit, interval) switch
         {
             ("Days", 1) => $"Daily at {hhmm}",
-            ("Weeks", 1) => $"Weekly Monday at {hhmm}",
+            ("Weeks", 1) => !string.IsNullOrWhiteSpace(entry.DayOfWeek) ? $"Weekly {entry.DayOfWeek} at {hhmm}" : $"Weekly Monday at {hhmm}",
             ("Hours", 1) => "Hourly",
             ("Hours", _) => $"Every {interval} hours",
             ("Days", _) => $"Every {interval} days (from save)",
