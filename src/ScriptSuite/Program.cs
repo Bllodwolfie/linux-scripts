@@ -276,6 +276,7 @@ sealed class Program
             }
 
             var executor = new BashScriptExecutor(catalog);
+            Environment.SetEnvironmentVariable("SCRIPTSUITE_SCHEDULED", "1");
             var result = executor.Execute(scriptId, AppPaths.ConfigPathFor(scriptId), dryRun: false);
             string outcome = result.Outcome switch
             {

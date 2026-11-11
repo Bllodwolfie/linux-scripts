@@ -144,6 +144,36 @@ public static class Stage7aSelfTest
                     dlg.Save();
                     Check(regCalls == 1 && closed == true,
                         "dialog accepts strict HH:mm");
+
+                    // --- Proof: Day checkboxes validation when Unit == Weeks ---
+                    dlg.UnitIndex = 2; // Weeks
+                    dlg.TimeText = "18:02";
+                    dlg.IsMon = dlg.IsTue = dlg.IsWed = dlg.IsThu = dlg.IsFri = dlg.IsSat = dlg.IsSun = false;
+                    dlg.Save();
+                    Check(dlg.ErrorText.Contains("at least one day"), "dialog rejects zero selected days in weekly mode");
+
+                    dlg.IsMon = true;
+                    dlg.IsWed = true;
+                    dlg.IsFri = true;
+                    Check(dlg.GetSelectedDaysString() == "Mon,Wed,Fri", "dialog generates correct comma-separated days");
+                    Check(!string.IsNullOrWhiteSpace(dlg.NextRunText) && dlg.NextRunText.StartsWith("Next run:"), "dialog live calculates next run preview");
+                    dlg.Save();
+                    Check(dlg.ErrorText == "", "dialog saves successfully with valid weekday selections");
+
+                    // --- Proof: IsDueThisWeek cadence check for multi-week schedules ---
+                    var schedEntry = new ScheduleEntry
+                    {
+                        Unit = "Weeks",
+                        Interval = 2,
+                        DayOfWeek = "Mon,Wed,Fri",
+                        CreatedAt = "2026-11-09 10:00:00"
+                    };
+                    DateTime week0 = new DateTime(2026, 11, 11);
+                    DateTime week1 = new DateTime(2026, 11, 18);
+                    DateTime week2 = new DateTime(2026, 11, 25);
+                    Check(Program.IsDueThisWeek(schedEntry, week0), "IsDueThisWeek returns true for active week");
+                    Check(!Program.IsDueThisWeek(schedEntry, week1), "IsDueThisWeek returns false for alternating off-week");
+                    Check(Program.IsDueThisWeek(schedEntry, week2), "IsDueThisWeek returns true for next 2-week cycle");
                 }
                 finally
                 {

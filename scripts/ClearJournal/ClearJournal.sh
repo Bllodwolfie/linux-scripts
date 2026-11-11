@@ -202,12 +202,15 @@ JCTL=(journalctl)
 [[ "$SCOPE" == "user" ]] && JCTL+=(--user)
 
 if [[ "$SCOPE" == "system" && "$EUID" -ne 0 ]]; then
-    if [[ "$DRY_RUN" -eq 0 ]]; then
-        info "Scheduled/unprivileged run: system journal vacuum requires root (run manually via pkexec) — falling back to user journal vacuum."
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        info "Running dry-run preview as non-root; scheduled runs will fall back to user journal unless run with pkexec."
+    elif [[ -n "${SCRIPTSUITE_SCHEDULED:-}" ]]; then
+        info "Scheduled unprivileged run: system journal vacuum requires root (run manually via pkexec) — falling back to user journal vacuum."
         SCOPE="user"
         JCTL=(journalctl --user)
     else
-        info "Running dry-run preview as non-root; scheduled runs will fall back to user journal unless run with pkexec."
+        error "System journal vacuum requires root — run via pkexec (the app elevates automatically)."
+        exit 1
     fi
 fi
 if [[ "$SCOPE" == "system" && ! -d /var/log/journal ]]; then
