@@ -140,10 +140,9 @@ public sealed class SystemdScheduleService
             string timerBody = (entry.Unit, interval) switch
             {
                 ("Days", 1) => $"OnCalendar=*-*-* {hhmm}:00",
-                ("Weeks", 1) => $"OnCalendar={day} *-*-* {hhmm}:00",
+                ("Weeks", _) => $"OnCalendar={day} *-*-* {hhmm}:00",
                 ("Hours", _) => $"OnUnitActiveSec={interval}h",
                 ("Days", _) => $"OnUnitActiveSec={interval}d",
-                ("Weeks", _) => $"OnUnitActiveSec={interval}w",
                 _ => $"OnCalendar=*-*-* {hhmm}:00",
             };
 
@@ -205,10 +204,10 @@ public sealed class SystemdScheduleService
         {
             ("Days", 1) => $"Daily at {hhmm}",
             ("Weeks", 1) => !string.IsNullOrWhiteSpace(entry.DayOfWeek) ? $"Weekly {entry.DayOfWeek} at {hhmm}" : $"Weekly Monday at {hhmm}",
+            ("Weeks", _) => !string.IsNullOrWhiteSpace(entry.DayOfWeek) ? $"Every {interval} weeks on {entry.DayOfWeek} at {hhmm}" : $"Every {interval} weeks (from save)",
             ("Hours", 1) => "Hourly",
             ("Hours", _) => $"Every {interval} hours",
             ("Days", _) => $"Every {interval} days (from save)",
-            ("Weeks", _) => $"Every {interval} weeks (from save)",
             _ => $"Daily at {hhmm}",
         };
     }

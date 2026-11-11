@@ -18,6 +18,10 @@ namespace ScriptSuite.ViewModels;
 public partial class ScheduleDialogViewModel : ViewModelBase
 {
     private static readonly string[] Units = { "Days", "Hours", "Weeks" };
+    public static readonly string[] DaysOfWeekList =
+    {
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+    };
 
     private readonly ScriptManifest _manifest;
     private readonly ScheduleStore _schedules;
@@ -26,20 +30,32 @@ public partial class ScheduleDialogViewModel : ViewModelBase
     private readonly Func<string, (bool ok, string? error)> _unregister;
 
     [ObservableProperty] private string _intervalText = "1";
-    [ObservableProperty] private int _unitIndex;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Unit))]
+    [NotifyPropertyChangedFor(nameof(IsWeeksSelected))]
+    private int _unitIndex;
+
+    [ObservableProperty]
+    private int _dayOfWeekIndex = 0;
+
     [ObservableProperty] private string _timeText = "09:00";
     [ObservableProperty] private bool _riskConsented;
     [ObservableProperty] private string _errorText = "";
     [ObservableProperty] private bool _helpVisible;
 
+    public bool IsWeeksSelected => Unit == "Weeks";
+
+    public string SelectedDayOfWeek =>
+        DaysOfWeekList[DayOfWeekIndex >= 0 && DayOfWeekIndex < DaysOfWeekList.Length ? DayOfWeekIndex : 0];
+
     /// <summary>Schedule overview (Windows parity: ScheduleHelpText, with
     /// systemd/polkit wording instead of Task Scheduler/UAC).</summary>
     public string HelpText =>
-        "Every N Days/Hours/Weeks at HH:mm — for example, every 2 Weeks at 09:00. "
+        "Every N Days/Hours/Weeks at HH:mm. When scheduling weekly, you can select the specific day (Monday through Sunday). "
+        + "Multi-week intervals (e.g. every 2 weeks) trigger on the chosen day in alternating weeks. "
         + "This registers a systemd user timer that launches the app headlessly; no prompts "
-        + "appear at run time. Admin scripts cannot elevate on a timer, so their scheduled runs "
-        + "are recorded as Failed — run those manually (polkit prompt) instead. If the app is "
-        + "open when the trigger fires, that run is skipped and appears as SkippedBusy in "
+        + "appear at run time. If the app is open when the trigger fires, that run is skipped and appears as SkippedBusy in "
         + "Scheduled History.";
 
     /// <summary>Dialog result: true = saved/removed (caller refreshes),
@@ -70,6 +86,11 @@ public partial class ScheduleDialogViewModel : ViewModelBase
             TimeText = existing.TimeOfDay;
             int i = Array.IndexOf(Units, existing.Unit);
             UnitIndex = i >= 0 ? i : 0;
+            if (!string.IsNullOrWhiteSpace(existing.DayOfWeek))
+            {
+                int dayIdx = Array.FindIndex(DaysOfWeekList, d => d.Equals(existing.DayOfWeek, StringComparison.OrdinalIgnoreCase));
+                DayOfWeekIndex = dayIdx >= 0 ? dayIdx : 0;
+            }
         }
     }
 
@@ -110,6 +131,13 @@ public partial class ScheduleDialogViewModel : ViewModelBase
             _consents.SetConsent(_manifest.Id, true);
 
         var existingEntry = _schedules.Get(_manifest.Id);
+        string? targetDay = Unit == "Weeks" ? SelectedDayOfWeek : null;
+        bool scheduleChanged = existingEntry == null
+            || existingEntry.Unit != Unit
+            || existingEntry.Interval != interval
+            || existingEntry.TimeOfDay != TimeText.Trim()
+            || existingEntry.DayOfWeek != targetDay;
+
         var entry = new ScheduleEntry
         {
             ScriptId = _manifest.Id,
@@ -117,8 +145,10 @@ public partial class ScheduleDialogViewModel : ViewModelBase
             Unit = Unit,
             Interval = interval,
             TimeOfDay = TimeText.Trim(),
-            DayOfWeek = existingEntry?.DayOfWeek ?? (Unit == "Weeks" ? "Sunday" : null),
-            CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            DayOfWeek = targetDay,
+            CreatedAt = scheduleChanged || string.IsNullOrEmpty(existingEntry?.CreatedAt)
+                ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                : existingEntry.CreatedAt,
         };
         var (ok, error) = _register(entry);
         if (!ok)

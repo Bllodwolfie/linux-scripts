@@ -255,6 +255,18 @@ sealed class Program
                 return 0;
             }
 
+            // Cadence guard for multi-week schedules (every N weeks on [Day])
+            var scheduleStore = new ScheduleStore(AppPaths.SchedulesPath);
+            var scheduleEntry = scheduleStore.Get(scriptId);
+            if (scheduleEntry is { Unit: "Weeks", Interval: > 1 })
+            {
+                if (!IsDueThisWeek(scheduleEntry, startedAt))
+                {
+                    Console.WriteLine($"Scheduled run {scriptId}: skipped (cadence: every {scheduleEntry.Interval} weeks on {scheduleEntry.DayOfWeek ?? "Monday"}).");
+                    return 0;
+                }
+            }
+
             var catalog = new ManifestCatalog(AppPaths.ManifestsDir);
             if (catalog.Find(scriptId) is null)
             {
@@ -297,6 +309,36 @@ sealed class Program
     // NOTE: .WithDeveloperTools() was removed — Avalonia 11.3 dropped that
     // API from the Diagnostics package (devtools moved to
     // AvaloniaUI.DiagnosticsSupport). Kept out so Debug builds compile.
+    public static bool IsDueThisWeek(ScheduleEntry entry, DateTime now)
+    {
+        if (entry.Interval <= 1) return true;
+        if (!DateTime.TryParse(entry.CreatedAt, out var created))
+            created = now;
+
+        DayOfWeek targetDay = DayOfWeek.Monday;
+        if (!string.IsNullOrWhiteSpace(entry.DayOfWeek) &&
+            Enum.TryParse<DayOfWeek>(entry.DayOfWeek, true, out var parsedDay))
+        {
+            targetDay = parsedDay;
+        }
+
+        DateTime firstDate = created.Date;
+        while (firstDate.DayOfWeek != targetDay)
+            firstDate = firstDate.AddDays(1);
+
+        if (SystemdScheduleService.TryParseTimeOfDay(entry.TimeOfDay, out var timeOfDay))
+        {
+            DateTime firstRun = firstDate.Add(timeOfDay);
+            if (firstRun < created)
+                firstDate = firstDate.AddDays(7);
+        }
+
+        int daysDiff = (int)(now.Date - firstDate.Date).TotalDays;
+        if (daysDiff < 0) return false;
+        int weeksDiff = (int)Math.Round(daysDiff / 7.0);
+        return (weeksDiff % entry.Interval) == 0;
+    }
+
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
