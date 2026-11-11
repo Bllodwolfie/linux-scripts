@@ -3,89 +3,110 @@
         xmlns:vm="using:ScriptSuite.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="420" d:DesignHeight="360"
+        mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="420"
         x:Class="ScriptSuite.Views.ScheduleDialog"
         x:DataType="vm:ScheduleDialogViewModel"
         Icon="/Assets/Cat_bobber-dark-square.png"
         Title="{Binding Title}"
-        Width="420" Height="470" CanResize="False"
+        Width="520" Height="420" CanResize="False"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource Brush.Background.Primary}"
         Foreground="{DynamicResource Brush.Foreground.Primary}">
 
-    <StackPanel Margin="20" Spacing="10">
-        <DockPanel>
-            <TextBlock Text="{Binding DisplayName}" FontSize="16"
+    <Grid Margin="24,18,24,18" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
+        <!-- Row 0: Header with title and ? help button -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="{Binding DisplayTitle}" FontSize="18"
                        FontWeight="SemiBold" VerticalAlignment="Center" />
-            <Button Command="{Binding ToggleHelpCommand}"
+            <Button Grid.Column="1" Command="{Binding ToggleHelpCommand}"
                     Width="24" Height="24" MinWidth="0" MinHeight="0" Padding="0"
-                    CornerRadius="12" HorizontalAlignment="Right" DockPanel.Dock="Right"
+                    CornerRadius="12" HorizontalAlignment="Right"
                     HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                     ToolTip.Tip="Schedule help">
                 <TextBlock Text="?" FontSize="13" FontWeight="Bold"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            TextAlignment="Center" />
             </Button>
-        </DockPanel>
-        <Border BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
-                BorderThickness="1" CornerRadius="6" Padding="10"
+        </Grid>
+
+        <!-- Row 1: Optional Help Text Panel -->
+        <Border Grid.Row="1" BorderBrush="{DynamicResource Brush.Background.Card.Hover}"
+                BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,8,0,0"
                 IsVisible="{Binding HelpVisible}">
             <TextBlock Text="{Binding HelpText}" FontSize="12"
                        TextWrapping="Wrap" />
         </Border>
-        <TextBlock Text="Recurrence" FontWeight="Bold" />
-        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <TextBlock Text="Every" VerticalAlignment="Center" />
-            <TextBox Text="{Binding IntervalText}" Width="65" VerticalAlignment="Center" />
-            <ComboBox SelectedIndex="{Binding UnitIndex}" Width="120" VerticalAlignment="Center">
+
+        <!-- Row 2: Subtitle / Description -->
+        <TextBlock Grid.Row="2" Text="{Binding Description}" FontSize="13"
+                   Margin="0,6,0,14" Foreground="{DynamicResource Brush.Foreground.Secondary}"
+                   TextWrapping="Wrap" />
+
+        <!-- Row 3: Every [N] [Unit] at [Time] -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" VerticalAlignment="Center">
+            <TextBlock Text="Every" VerticalAlignment="Center" Margin="0,0,2,0" />
+            <TextBox Text="{Binding IntervalText}" Width="60" Height="28" VerticalContentAlignment="Center" />
+            <ComboBox SelectedIndex="{Binding UnitIndex}" Width="120" Height="28">
                 <ComboBoxItem Content="Days" />
                 <ComboBoxItem Content="Hours" />
                 <ComboBoxItem Content="Weeks" />
             </ComboBox>
+            <TextBlock Text="at" VerticalAlignment="Center" Margin="4,0,2,0" />
+            <TextBox Text="{Binding TimeText}" Width="75" Height="28" VerticalContentAlignment="Center" ToolTip.Tip="HH:mm e.g. 09:00" />
         </StackPanel>
 
-        <!-- Day of the week selector, visible only when 'Weeks' is selected -->
-        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                    IsVisible="{Binding IsWeeksSelected}">
-            <TextBlock Text="On every" VerticalAlignment="Center" FontWeight="SemiBold" />
-            <ComboBox SelectedIndex="{Binding DayOfWeekIndex}" Width="150" VerticalAlignment="Center">
-                <ComboBoxItem Content="Monday" />
-                <ComboBoxItem Content="Tuesday" />
-                <ComboBoxItem Content="Wednesday" />
-                <ComboBoxItem Content="Thursday" />
-                <ComboBoxItem Content="Friday" />
-                <ComboBoxItem Content="Saturday" />
-                <ComboBoxItem Content="Sunday" />
-            </ComboBox>
+        <!-- Row 4: Days of the week checkboxes (visible when Weeks is selected) -->
+        <StackPanel Grid.Row="4" Spacing="6" Margin="0,0,0,12" IsVisible="{Binding IsWeeksSelected}">
+            <TextBlock Text="Days of the week (at least one):" FontSize="13" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <CheckBox Content="Mon" IsChecked="{Binding IsMon}" />
+                <CheckBox Content="Tue" IsChecked="{Binding IsTue}" />
+                <CheckBox Content="Wed" IsChecked="{Binding IsWed}" />
+                <CheckBox Content="Thu" IsChecked="{Binding IsThu}" />
+                <CheckBox Content="Fri" IsChecked="{Binding IsFri}" />
+                <CheckBox Content="Sat" IsChecked="{Binding IsSat}" />
+                <CheckBox Content="Sun" IsChecked="{Binding IsSun}" />
+            </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-            <TextBlock Text="At time" VerticalAlignment="Center" FontWeight="SemiBold" />
-            <TextBox Text="{Binding TimeText}" Width="80" ToolTip.Tip="HH:mm e.g. 09:00" VerticalAlignment="Center" />
+        <!-- Row 5: Next Run preview & Admin warning -->
+        <StackPanel Grid.Row="5" Spacing="6" Margin="0,0,0,8">
+            <TextBlock Text="{Binding NextRunText}"
+                       Foreground="{DynamicResource Brush.Accent.Primary}"
+                       FontWeight="SemiBold" FontSize="13"
+                       IsVisible="{Binding HasNextRunText}" />
+
+            <CheckBox Content="I understand the risks (required for admin scripts)"
+                      IsChecked="{Binding RiskConsented}"
+                      IsVisible="{Binding ShowRisk}" />
+            <TextBlock Text="{Binding AdminTimerWarning}"
+                       IsVisible="{Binding ShowRisk}"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource Brush.Status.Warning.Text}"
+                       FontSize="12" />
         </StackPanel>
 
-        <TextBlock Text="Weekly schedules trigger on the selected day of the week. Multi-week schedules (e.g. every 2 weeks) alternate reliably from the first scheduled day."
-                   TextWrapping="Wrap" Opacity="0.7" FontSize="12" />
-
-        <CheckBox Content="I understand the risks (required for admin scripts)"
-                  IsChecked="{Binding RiskConsented}"
-                  IsVisible="{Binding ShowRisk}" />
-        <TextBlock Text="{Binding AdminTimerWarning}"
-                   IsVisible="{Binding ShowRisk}"
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource Brush.Status.Warning.Text}"
-                   FontSize="12" />
-
-        <TextBlock Text="{Binding ErrorText}"
+        <!-- Row 6: Error Text -->
+        <TextBlock Grid.Row="6" Text="{Binding ErrorText}"
                    Foreground="{DynamicResource Brush.Status.Error}"
-                   TextWrapping="Wrap" FontSize="12" />
+                   TextWrapping="Wrap" FontSize="12"
+                   IsVisible="{Binding HasError}" />
 
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Save" Command="{Binding SaveCommand}" IsDefault="True" />
-            <Button Content="Remove schedule" Command="{Binding RemoveCommand}"
-                    IsVisible="{Binding ShowRemove}" />
-            <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True" />
+        <!-- Row 7: Action Buttons (Right-aligned) -->
+        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Remove Schedule" Command="{Binding RemoveCommand}"
+                    IsVisible="{Binding ShowRemove}" Padding="12,6" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}"
+                    IsCancel="True" Padding="12,6" />
+            <Button Content="Save" Command="{Binding SaveCommand}"
+                    IsDefault="True" Padding="16,6"
+                    Background="{DynamicResource Brush.Accent.Primary}"
+                    Foreground="{DynamicResource Brush.Accent.Primary.Foreground}" />
         </StackPanel>
-    </StackPanel>
+    </Grid>
 
 </Window>

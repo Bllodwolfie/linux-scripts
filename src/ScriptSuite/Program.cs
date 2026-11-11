@@ -315,27 +315,12 @@ sealed class Program
         if (!DateTime.TryParse(entry.CreatedAt, out var created))
             created = now;
 
-        DayOfWeek targetDay = DayOfWeek.Monday;
-        if (!string.IsNullOrWhiteSpace(entry.DayOfWeek) &&
-            Enum.TryParse<DayOfWeek>(entry.DayOfWeek, true, out var parsedDay))
-        {
-            targetDay = parsedDay;
-        }
+        DateTime anchorMonday = created.Date.AddDays(-(int)created.DayOfWeek + (created.DayOfWeek == DayOfWeek.Sunday ? -6 : 1));
+        DateTime currentMonday = now.Date.AddDays(-(int)now.DayOfWeek + (now.DayOfWeek == DayOfWeek.Sunday ? -6 : 1));
 
-        DateTime firstDate = created.Date;
-        while (firstDate.DayOfWeek != targetDay)
-            firstDate = firstDate.AddDays(1);
-
-        if (SystemdScheduleService.TryParseTimeOfDay(entry.TimeOfDay, out var timeOfDay))
-        {
-            DateTime firstRun = firstDate.Add(timeOfDay);
-            if (firstRun < created)
-                firstDate = firstDate.AddDays(7);
-        }
-
-        int daysDiff = (int)(now.Date - firstDate.Date).TotalDays;
+        int daysDiff = (int)(currentMonday - anchorMonday).TotalDays;
         if (daysDiff < 0) return false;
-        int weeksDiff = (int)Math.Round(daysDiff / 7.0);
+        int weeksDiff = daysDiff / 7;
         return (weeksDiff % entry.Interval) == 0;
     }
 
