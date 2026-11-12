@@ -1,3 +1,18 @@
+scriptsuite (1.0.4) noble; urgency=low
+
+  * Schedule dialog: support specific day of week checkboxes,
+    multi-week cadence (every N weeks), and live next-run preview
+    matching Windows-Scripts UI parity.
+  * Systemd timers: render OnCalendar expressions with explicit day of week
+    tokens and enforce multi-week guard.
+  * EmptyFolderCleanup: prune dev trees (.git, node_modules, vendor) by
+    default to prevent stalling on deep directory trees.
+  * ClearJournal: fallback to unprivileged user journal vacuum in headless
+    scheduled mode (SCRIPTSUITE_SCHEDULED=1).
+  * Self-tests: stage 7a proofs for multi-day schedule selection and cadence guard.
+
+ -- Bllodwolfie <Bllodwolfie@users.noreply.github.com>  Thu, 12 Nov 2026 12:45:00 +0100
+
 scriptsuite (1.0.3) noble; urgency=low
 
   * SystemHealthReport: parse ps rss before args so process flags
