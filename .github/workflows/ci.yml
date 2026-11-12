@@ -29,7 +29,7 @@ jobs:
         run: dotnet build src/ScriptSuite/ScriptSuite.csproj -c Release --nologo
 
       - name: Headless self-tests (stages 2-9)
-        run: src/ScriptSuite/bin/Release/net8.0/ScriptSuite --self-test
+        run: dotnet run --project src/ScriptSuite/ScriptSuite.csproj -c Release --no-build -- --self-test
 
       - name: Cross-uid elevation handoff (root child, caller-owned result)
         # Needs passwordless sudo (runners have it); the test SKIPs anywhere
